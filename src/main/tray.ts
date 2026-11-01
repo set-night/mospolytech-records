@@ -33,12 +33,18 @@ export function describe(status: RecorderStatus): string {
 export interface TrayActions {
   open(page?: string): void;
   stop(): void;
+  openFolder(): void;
+  /** Restarts into a downloaded update. */
+  update(): void;
   quit(): void;
 }
 
 export class AppTray {
   private readonly tray: Tray;
   private recording = false;
+  private status: RecorderStatus | null = null;
+  /** Version of a downloaded update waiting for a restart. */
+  private pending: string | null = null;
 
   constructor(private readonly actions: TrayActions) {
     this.tray = new Tray(image(false));
@@ -46,7 +52,14 @@ export class AppTray {
     this.tray.on('click', () => actions.open());
   }
 
+  /** Offers a restart into `version` once it is downloaded. */
+  updateReady(version: string | null): void {
+    this.pending = version;
+    if (this.status) this.update(this.status);
+  }
+
   update(status: RecorderStatus): void {
+    this.status = status;
     const recording = status.state === 'recording';
     if (recording !== this.recording) {
       this.recording = recording;
@@ -62,8 +75,12 @@ export class AppTray {
       { label: 'Что записывается сейчас', enabled: active, click: () => this.actions.open('status') },
       { label: 'Расписание', click: () => this.actions.open('schedule') },
       { label: 'Записи', click: () => this.actions.open('recordings') },
+      { label: 'Открыть папку с записями', click: () => this.actions.openFolder() },
       { label: 'Остановить запись', enabled: active, click: () => this.actions.stop() },
       { type: 'separator' },
+      ...(this.pending
+        ? [{ label: `Перезапустить и обновить до ${this.pending}`, enabled: !active, click: () => this.actions.update() }]
+        : []),
       { label: 'Выйти', click: () => this.actions.quit() },
     ]));
   }

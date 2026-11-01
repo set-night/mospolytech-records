@@ -6,6 +6,13 @@ export const JOIN_LEAD = 5 * 60_000;
 
 export type Quality = 'low' | 'medium' | 'high';
 
+/** Roughly what one 90-minute lesson takes on disk at each quality. */
+export const LESSON_BYTES: Record<Quality, number> = {
+  low: 0.6 * 1024 ** 3,
+  medium: 1.1 * 1024 ** 3,
+  high: 2.1 * 1024 ** 3,
+};
+
 export interface Settings {
   group: string;
   folder: string;
@@ -85,10 +92,25 @@ export interface RecorderStatus {
   next: Lesson | null;
 }
 
+/**
+ * `manual`: the user downloads the installer from the release page (macOS, msi, deb).
+ * `downloading` / `ready`: the app fetches the update itself and installs it on restart.
+ */
+export type UpdateStage = 'manual' | 'downloading' | 'ready';
+
 export interface UpdateInfo {
   current: string;
   latest: string;
   url: string;
+  stage: UpdateStage;
+  /** Download progress, 0–100, while `downloading`. */
+  percent: number | null;
+}
+
+export interface DiskSpace {
+  free: number | null;
+  /** How many lessons fit at the current quality. */
+  lessons: number | null;
 }
 
 export interface AppInfo {

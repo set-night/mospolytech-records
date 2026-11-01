@@ -67,11 +67,11 @@ export function App() {
         </div>
       </nav>
       <main className="content">
-        {page === 'status' && <HomePage settings={settings} status={status} onNavigate={setPage} />}
+        {page === 'status' && <HomePage settings={settings} status={status} update={update} onNavigate={setPage} />}
         {page === 'schedule' && <SchedulePage settings={settings} status={status} />}
         {page === 'recordings' && <RecordingsPage />}
         {page === 'settings' && <SettingsPage settings={settings} />}
-        {page === 'about' && <AboutPage update={update} />}
+        {page === 'about' && <AboutPage update={update} status={status} />}
       </main>
     </div>
   );

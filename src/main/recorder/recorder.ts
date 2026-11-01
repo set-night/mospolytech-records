@@ -7,6 +7,14 @@ import { RecordingSession } from './session';
 const TICK = 30_000;
 const LINK_RETRY = 3 * 60_000;
 
+/** A session that ended on its own, not because the user or the app stopped it. */
+export interface Finished {
+  lesson: Lesson;
+  /** Last part written, or `null` when the lesson never started. */
+  file: string | null;
+  message: string | null;
+}
+
 /** Decides what to record and runs one `RecordingSession` at a time. */
 export class Recorder {
   private current: RecordingSession | null = null;
@@ -16,6 +24,9 @@ export class Recorder {
   private linkCheckedAt = 0;
   private lastMessage: string | null = null;
   private readonly listeners = new Set<(status: RecorderStatus) => void>();
+  private readonly finishedListeners = new Set<(finished: Finished) => void>();
+  /** Sessions stopped on request: no "finished" notice for them. */
+  private readonly requested = new WeakSet<RecordingSession>();
 
   constructor(private readonly settings: SettingsStore, private readonly schedule: ScheduleService) {
     schedule.onChange(() => this.tick());
@@ -28,6 +39,10 @@ export class Recorder {
 
   onStatus(listener: (status: RecorderStatus) => void): void {
     this.listeners.add(listener);
+  }
+
+  onFinished(listener: (finished: Finished) => void): void {
+    this.finishedListeners.add(listener);
   }
 
   status(): RecorderStatus {
@@ -47,6 +62,7 @@ export class Recorder {
     const session = this.current;
     if (!session) return;
     this.skip.add(session.lesson.id);
+    this.requested.add(session);
     await session.stop('Остановлено вручную');
   }
 
@@ -57,7 +73,10 @@ export class Recorder {
     if (lesson.endsAt <= Date.now()) throw new Error('Пара уже закончилась');
     this.skip.delete(lesson.id);
     this.manual = lesson.id;
-    if (this.current && this.current.lesson.id !== lesson.id) await this.current.stop('Переключаюсь на другую пару');
+    if (this.current && this.current.lesson.id !== lesson.id) {
+      this.requested.add(this.current);
+      await this.current.stop('Переключаюсь на другую пару');
+    }
     this.tick();
   }
 
@@ -65,6 +84,7 @@ export class Recorder {
   async shutdown(): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    if (this.current) this.requested.add(this.current);
     await this.current?.stop('Приложение закрыто', 'partial');
   }
 
@@ -129,6 +149,9 @@ export class Recorder {
       if (this.manual === lesson.id) this.manual = null;
       this.lastMessage = session.file ? `Запись «${lesson.subject}» сохранена` : session.message;
       this.current = null;
+      if (!this.requested.has(session)) {
+        for (const listener of this.finishedListeners) listener({ lesson, file: session.file, message: session.message });
+      }
       this.tick();
     });
     session.start();

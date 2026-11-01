@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Download, ExternalLink, ShieldCheck } from 'lucide-react';
-import { APP_NAME, type AppInfo, type UpdateInfo } from '@shared/types';
+import { ExternalLink, ShieldCheck } from 'lucide-react';
+import { APP_NAME, type AppInfo, type RecorderStatus, type UpdateInfo } from '@shared/types';
 import { Button, Logo } from '../../shared/ui';
+import { UpdateBanner } from './UpdateBanner';
 
-export function AboutPage({ update }: { update: UpdateInfo | null }) {
+export function AboutPage({ update, status }: { update: UpdateInfo | null; status: RecorderStatus | null }) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   useEffect(() => {
     void window.api.getInfo().then(setInfo);
@@ -11,16 +12,7 @@ export function AboutPage({ update }: { update: UpdateInfo | null }) {
 
   return (
     <div className="page about">
-      {update && (
-        <div className="update-banner">
-          <Download size={20} />
-          <div>
-            <strong>Вышла версия {update.latest}</strong>
-            <span className="muted small">У тебя {update.current}. Скачай установщик и запусти его поверх — записи и настройки сохранятся.</span>
-          </div>
-          <Button variant="primary" onClick={() => void window.api.openRepo()}>Скачать</Button>
-        </div>
-      )}
+      {update && <UpdateBanner update={update} status={status} />}
       <div className="about-hero">
         <Logo size={88} />
         <h1>{APP_NAME}</h1>

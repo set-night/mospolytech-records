@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { FolderOpen, Gauge, Power, UserRound, Users } from 'lucide-react';
-import type { Quality, Settings } from '@shared/types';
+import type { DiskSpace, Quality, Settings } from '@shared/types';
+import { fileSize } from '../../shared/format';
 import { errorText, useAction } from '../../shared/hooks';
 import { Button, ErrorText, PageHeader, Switch } from '../../shared/ui';
 
@@ -10,7 +11,22 @@ const QUALITY: { value: Quality; label: string; hint: string }[] = [
   { value: 'high', label: 'Чётко', hint: '≈ 2 ГБ за пару' },
 ];
 
-function Row({ icon, title, hint, children }: { icon: ReactNode; title: string; hint: string; children: ReactNode }) {
+function lessonsWord(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (tens >= 11 && tens <= 14) return 'пар';
+  if (ones === 1) return 'пару';
+  if (ones >= 2 && ones <= 4) return 'пары';
+  return 'пар';
+}
+
+function spaceHint(space: DiskSpace | null): ReactNode {
+  if (space?.free == null || space.lessons == null) return 'Новые записи будут сохраняться сюда';
+  const text = `Свободно ${fileSize(space.free)} — хватит примерно на ${space.lessons} ${lessonsWord(space.lessons)}`;
+  return space.lessons < 2 ? <span className="disk-low">{text}</span> : text;
+}
+
+function Row({ icon, title, hint, children }: { icon: ReactNode; title: string; hint: ReactNode; children: ReactNode }) {
   return (
     <div className="setting">
       <div className="setting-icon">{icon}</div>
@@ -33,6 +49,15 @@ export function SettingsPage({ settings }: { settings: Settings }) {
     const folder = await window.api.chooseFolder();
     if (folder) await window.api.saveSettings({ folder });
   });
+
+  const [space, setSpace] = useState<DiskSpace | null>(null);
+  useEffect(() => {
+    let current = true;
+    window.api.getDiskSpace().then((value) => current && setSpace(value), () => undefined);
+    return () => {
+      current = false;
+    };
+  }, [settings.folder, settings.quality]);
 
   // Saved elsewhere (tray, onboarding): take the new value into the field.
   const [seen, setSeen] = useState(settings);
@@ -72,7 +97,7 @@ export function SettingsPage({ settings }: { settings: Settings }) {
         </Row>
         <ErrorText>{groupError}</ErrorText>
 
-        <Row icon={<FolderOpen size={18} />} title="Папка для записей" hint="Новые записи будут сохраняться сюда">
+        <Row icon={<FolderOpen size={18} />} title="Папка для записей" hint={spaceHint(space)}>
           <div className="folder-picker">
             <code title={settings.folder}>{settings.folder}</code>
             <Button disabled={choose.busy} onClick={() => void choose.run()}>Изменить…</Button>

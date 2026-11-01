@@ -63,4 +63,11 @@ appImage:
 deb:
   artifactName: MosPolytech-Records-${arch}.${ext}
 
-publish: null
+# Writes app-update.yml into the app and latest*.yml next to the installers, which the
+# installed app reads from the GitHub release to update itself. CI uploads them; nothing
+# is published from electron-builder itself (`--publish never`).
+publish:
+  provider: github
+  owner: set-night
+  repo: mospolytech-records
+  releaseType: release

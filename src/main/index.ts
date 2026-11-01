@@ -1,15 +1,16 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, Notification, powerSaveBlocker, shell } from 'electron';
-import { APP_NAME } from '@shared/types';
+import { app, BrowserWindow, Notification, powerMonitor, powerSaveBlocker, shell } from 'electron';
+import { APP_NAME, LESSON_BYTES } from '@shared/types';
 import { applyAutoStart, startedHidden } from './autostart';
 import { registerIpc, send, type Context } from './ipc';
 import { handleMedia, registerMediaScheme } from './media';
 import { loadPage, preloadPath } from './pages';
 import { Recorder } from './recorder/recorder';
+import { freeSpace } from './recordings/disk';
 import { ScheduleService } from './schedule/service';
 import { defaultFolder, SettingsStore } from './settings/store';
 import { AppTray, iconPath } from './tray';
-import { checkUpdates } from './updates';
+import { Updater } from './updates';
 
 app.setName(APP_NAME);
 if (process.platform === 'win32') app.setAppUserModelId('io.github.set-night.mospolytech-records');
@@ -30,7 +31,8 @@ async function main(): Promise<void> {
   const settings = new SettingsStore(join(data, 'settings.json'), defaultFolder(app.getPath('documents')));
   const schedule = new ScheduleService(join(data, 'schedule.json'), () => settings.get().group);
   const recorder = new Recorder(settings, schedule);
-  const context: Context = { settings, schedule, recorder, window: () => window };
+  const updater = new Updater(app.getVersion());
+  const context: Context = { settings, schedule, recorder, updater, window: () => window, quit: (restart) => quit(restart) };
 
   function open(page?: string): void {
     if (!window || window.isDestroyed()) {
@@ -67,23 +69,62 @@ async function main(): Promise<void> {
     window.focus();
   }
 
-  async function quit(): Promise<void> {
+  async function quit(restart = false): Promise<void> {
+    if (quitting) return;
     quitting = true;
     schedule.stop();
+    updater.stop();
     await recorder.shutdown();
-    app.exit(0);
+    // A downloaded update is installed on the way out, never during a lesson.
+    if (!updater.install(restart)) app.exit(0);
+  }
+
+  function notify(title: string, body: string, page?: string): void {
+    if (!Notification.isSupported()) return;
+    const notification = new Notification({ title, body });
+    if (page) notification.on('click', () => open(page));
+    notification.show();
+  }
+
+  let lowSpaceWarned = false;
+  async function checkSpace(): Promise<void> {
+    const { folder, quality } = settings.get();
+    const free = await freeSpace(folder);
+    if (free === null) return;
+    const low = free < 2 * LESSON_BYTES[quality];
+    if (low && !lowSpaceWarned) {
+      notify('Мало места на диске', 'Осталось меньше чем на две пары. Освободи место или выбери другую папку в настройках.', 'settings');
+    }
+    lowSpaceWarned = low;
   }
 
   registerIpc(context);
   handleMedia(() => settings.get().folder);
 
-  const tray = new AppTray({ open, stop: () => void recorder.stopCurrent(), quit: () => void quit() });
+  const tray = new AppTray({
+    open,
+    stop: () => void recorder.stopCurrent(),
+    openFolder: () => void shell.openPath(settings.get().folder),
+    update: () => {
+      if (recorder.status().state === 'idle') void quit(true);
+    },
+    quit: () => void quit(),
+  });
+  let spaceTimer: NodeJS.Timeout | null = null;
   let blocker: number | null = null;
   let lastFile: string | null = null;
   recorder.onStatus((status) => {
     tray.update(status);
     send(context, 'status', status);
     const active = status.state !== 'idle';
+    if (active && !spaceTimer) {
+      void checkSpace();
+      spaceTimer = setInterval(() => void checkSpace(), 5 * 60_000);
+    }
+    if (!active && spaceTimer) {
+      clearInterval(spaceTimer);
+      spaceTimer = null;
+    }
     // Keep the computer awake while a lesson is joined or recorded.
     if (active && blocker === null) blocker = powerSaveBlocker.start('prevent-app-suspension');
     if (!active && blocker !== null) {
@@ -92,11 +133,21 @@ async function main(): Promise<void> {
     }
     if (status.file !== lastFile) {
       if (status.file && Notification.isSupported()) {
-        new Notification({ title: 'Запись началась', body: status.lesson?.subject ?? '', silent: true }).show();
+        const started = new Notification({ title: 'Запись началась', body: status.lesson?.subject ?? '', silent: true });
+        started.on('click', () => open('status'));
+        started.show();
       }
       lastFile = status.file;
       send(context, 'recordings', null);
     }
+  });
+  recorder.onFinished(({ lesson, file, message }) => {
+    if (file) notify('Запись сохранена', lesson.subject, 'recordings');
+    else notify('Пара не записана', `${lesson.subject}${message ? ` — ${message}` : ''}`, 'status');
+  });
+  updater.onChange((info) => {
+    send(context, 'update', info);
+    tray.updateReady(info.stage === 'ready' ? info.latest : null);
   });
   schedule.onChange((state) => send(context, 'schedule', state));
   let autoStart = settings.get().autoStart;
@@ -104,6 +155,12 @@ async function main(): Promise<void> {
   settings.onChange((value) => {
     send(context, 'settings', value);
     if (value.autoStart !== autoStart) applyAutoStart((autoStart = value.autoStart));
+  });
+
+  // After sleep the timetable may be stale and a lesson may already be on.
+  powerMonitor.on('resume', () => {
+    void schedule.refresh().catch(() => undefined);
+    recorder.start();
   });
 
   app.on('second-instance', () => open());
@@ -121,7 +178,5 @@ async function main(): Promise<void> {
   recorder.start();
   tray.update(recorder.status());
   if (!startedHidden() || !settings.get().onboarded) open();
-
-  const update = await checkUpdates(app.getVersion()).catch(() => null);
-  if (update) send(context, 'update', update);
+  updater.start();
 }

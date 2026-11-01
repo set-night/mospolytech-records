@@ -302,6 +302,9 @@ code {
   border-radius: var(--radius); background: var(--accent-soft); border: 1px solid rgb(99 102 241 / 0.4); color: var(--accent-text);
 }
 .update-banner div { display: grid; gap: 2px; color: var(--text); }
+.update-banner progress { width: 100%; height: 6px; margin-top: 6px; accent-color: var(--accent); }
+.page > .update-banner { margin-bottom: 20px; }
+.disk-low { color: var(--live); }
 
 @media (max-width: 920px) {
   .status-card, .schedule-layout { grid-template-columns: 1fr; }

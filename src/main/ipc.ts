@@ -2,20 +2,24 @@ import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
 import { z } from 'zod';
 import type { Api, ApiChannel, EventName, Events } from '@shared/api';
 import { API_CHANNELS } from '@shared/api';
-import { REPO_URL } from '@shared/types';
+import { LESSON_BYTES, REPO_URL } from '@shared/types';
 import type { Recorder } from './recorder/recorder';
+import { freeSpace } from './recordings/disk';
 import { insideFolder, listRecordings, trashRecording } from './recordings/library';
 import { fetchGroups, fetchSchedule, normalizeGroup, ScheduleError } from './schedule/dmami';
 import type { ScheduleService } from './schedule/service';
 import type { SettingsStore } from './settings/store';
 import { defaultFolder } from './settings/store';
-import { checkUpdates } from './updates';
+import type { Updater } from './updates';
 
 export interface Context {
   settings: SettingsStore;
   schedule: ScheduleService;
   recorder: Recorder;
+  updater: Updater;
   window: () => BrowserWindow | null;
+  /** Quits the app, installing a downloaded update and starting again if asked. */
+  quit: (restart: boolean) => Promise<void>;
 }
 
 type Handlers = { [K in ApiChannel]: (args: unknown[]) => ReturnType<Api[K]> | Awaited<ReturnType<Api[K]>> };
@@ -33,7 +37,7 @@ function recordingFile(context: Context, value: unknown): string {
 let groups: Promise<string[]> | null = null;
 
 function handlers(context: Context): Handlers {
-  const { settings, schedule, recorder } = context;
+  const { settings, schedule, recorder, updater } = context;
   return {
     getInfo: () => ({ version: app.getVersion(), platform: process.platform, repo: REPO_URL, defaultFolder: defaultFolder(app.getPath('documents')) }),
     getSettings: () => settings.get(),
@@ -80,6 +84,11 @@ function handlers(context: Context): Handlers {
       const error = await shell.openPath(settings.get().folder);
       if (error) throw new Error(error);
     },
+    getDiskSpace: async () => {
+      const { folder, quality } = settings.get();
+      const free = await freeSpace(folder);
+      return { free, lessons: free === null ? null : Math.floor(free / LESSON_BYTES[quality]) };
+    },
     showRecording: ([file]) => shell.showItemInFolder(recordingFile(context, file)),
     openExternalPlayer: async ([file]) => {
       const error = await shell.openPath(recordingFile(context, file));
@@ -91,7 +100,12 @@ function handlers(context: Context): Handlers {
       await trashRecording(settings.get().folder, path, (target) => shell.trashItem(target));
     },
     openRepo: () => shell.openExternal(REPO_URL),
-    checkUpdates: () => checkUpdates(app.getVersion()).catch(() => null),
+    checkUpdates: () => updater.check().catch(() => updater.state()),
+    installUpdate: async () => {
+      if (recorder.status().state !== 'idle') throw new Error('Сейчас идёт пара — обновлю после неё');
+      if (!updater.ready) throw new Error('Обновление ещё не скачано');
+      await context.quit(true);
+    },
   };
 }
 

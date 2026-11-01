@@ -1,4 +1,4 @@
-import type { AppInfo, Recording, RecorderStatus, ScheduleState, Settings, UpdateInfo } from './types';
+import type { AppInfo, DiskSpace, Recording, RecorderStatus, ScheduleState, Settings, UpdateInfo } from './types';
 
 /** Main-process handlers exposed to the UI; channel name = key. */
 export interface Api {
@@ -17,11 +17,14 @@ export interface Api {
   recordNow(lessonId: string): Promise<void>;
   listRecordings(): Promise<Recording[]>;
   openFolder(): Promise<void>;
+  getDiskSpace(): Promise<DiskSpace>;
   showRecording(file: string): Promise<void>;
   openExternalPlayer(file: string): Promise<void>;
   trashRecording(file: string): Promise<void>;
   openRepo(): Promise<void>;
   checkUpdates(): Promise<UpdateInfo | null>;
+  /** Restarts into the downloaded update; refused while a lesson is being recorded. */
+  installUpdate(): Promise<void>;
 }
 
 export type ApiChannel = keyof Api;
@@ -29,7 +32,8 @@ export type ApiChannel = keyof Api;
 export const API_CHANNELS: readonly ApiChannel[] = [
   'getInfo', 'getSettings', 'saveSettings', 'chooseFolder', 'listGroups', 'checkGroup', 'getSchedule',
   'refreshSchedule', 'setSubjectEnabled', 'getStatus', 'getPreview', 'stopRecording', 'recordNow',
-  'listRecordings', 'openFolder', 'showRecording', 'openExternalPlayer', 'trashRecording', 'openRepo', 'checkUpdates',
+  'listRecordings', 'openFolder', 'getDiskSpace', 'showRecording', 'openExternalPlayer', 'trashRecording', 'openRepo',
+  'checkUpdates', 'installUpdate',
 ];
 
 /** Events pushed from main to the UI. */
