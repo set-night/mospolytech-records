@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "mospolytech-records",
+      "include-component-in-tag": false,
+      "pull-request-title-pattern": "chore(release): v${version}",
+      "pull-request-header": "Слейте этот PR, чтобы выпустить новую версию: установщики соберутся сами, а приложения у пользователей обновятся в фоне.",
+      "changelog-sections": [
+        { "type": "feat", "section": "Новое" },
+        { "type": "fix", "section": "Исправления" },
+        { "type": "perf", "section": "Быстрее" },
+        { "type": "refactor", "section": "Внутри", "hidden": true },
+        { "type": "docs", "section": "Документация", "hidden": true },
+        { "type": "test", "section": "Тесты", "hidden": true },
+        { "type": "ci", "section": "CI", "hidden": true },
+        { "type": "build", "section": "Сборка", "hidden": true },
+        { "type": "chore", "section": "Прочее", "hidden": true }
+      ]
+    }
+  }
+}

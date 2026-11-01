@@ -1,13 +1,23 @@
 name: Release
 
-# Push a tag like v0.2.0 (matching package.json) to build installers for every OS
-# and publish them as a GitHub release.
+# Builds installers for every OS and attaches them to the GitHub release, together with the
+# latest*.yml files the installed app reads to update itself. Called by the Release PR
+# workflow after a release PR is merged; pushing a tag like v0.2.0 by hand works too.
 on:
   push:
     tags: ['v*']
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag, like v0.2.0
+        required: true
+        type: string
 
 permissions:
   contents: read
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -22,6 +32,8 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -30,8 +42,8 @@ jobs:
         shell: bash
         run: |
           version="$(node -p "require('./package.json').version")"
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match package.json version $version"
             exit 1
           fi
       - run: npm ci
@@ -40,9 +52,10 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: installers-${{ matrix.os }}
+          # Blockmaps let the app download only the changed parts of an update.
           path: |
             dist/MosPolytech-Records-*
-            !dist/*.blockmap
+            dist/latest*.yml
           if-no-files-found: error
 
   publish:
@@ -57,14 +70,25 @@ jobs:
         with:
           path: installers
           merge-multiple: true
-      - name: Create release
+      - name: Attach installers
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la installers
-          sed "s/{{VERSION}}/$GITHUB_REF_NAME/g" .github/release-notes.md > notes.md
-          gh release create "$GITHUB_REF_NAME" installers/* \
-            --title "MosPolytech Records $GITHUB_REF_NAME" \
-            --notes-file notes.md \
-            --generate-notes \
-            --verify-tag
+          sed "s/{{VERSION}}/$TAG/g" .github/release-notes.md > notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Created by the Release PR workflow: keep its changelog under the download table.
+            gh release view "$TAG" --json body --jq .body > changelog.md
+            gh release upload "$TAG" installers/* --clobber
+            if ! grep -q '^## Скачать' changelog.md; then
+              printf '\n\n' >> notes.md
+              cat changelog.md >> notes.md
+              gh release edit "$TAG" --title "MosPolytech Records $TAG" --notes-file notes.md
+            fi
+          else
+            gh release create "$TAG" installers/* \
+              --title "MosPolytech Records $TAG" \
+              --notes-file notes.md \
+              --generate-notes \
+              --verify-tag
+          fi
