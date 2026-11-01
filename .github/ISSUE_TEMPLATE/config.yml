@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Вопрос или обсуждение
+    url: https://github.com/set-night/mospolytech-records/discussions
+    about: Как настроить, куда смотреть, поделиться опытом
+  - name: 🔒 Уязвимость
+    url: https://github.com/set-night/mospolytech-records/security/advisories/new
+    about: Сообщите приватно, не в публичном issue

@@ -1,0 +1,46 @@
+name: 🐞 Что-то не работает
+description: Пара не записалась, приложение не запускается или ведёт себя странно
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Спасибо, что сообщаете! Чем подробнее, тем быстрее починим.
+  - type: textarea
+    id: what
+    attributes:
+      label: Что случилось
+      description: Что вы делали, что ожидали увидеть и что получилось на самом деле.
+      placeholder: Пара по математике в 10:40 не записалась, хотя предмет включён…
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Версия приложения
+      description: Видна в разделе «О программе».
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Система
+      options:
+        - Windows
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (AppImage)
+        - Linux (.deb)
+    validations:
+      required: true
+  - type: input
+    id: group
+    attributes:
+      label: Группа
+      description: Поможет воспроизвести проблему с расписанием.
+      placeholder: 241-321
+  - type: textarea
+    id: extra
+    attributes:
+      label: Скриншоты и подробности
+      description: Перетащите сюда скриншот или вставьте текст ошибки.

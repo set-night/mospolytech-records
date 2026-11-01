@@ -1,0 +1,17 @@
+name: 💡 Идея
+description: Предложите, что сделать удобнее или добавить
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Что неудобно сейчас
+      placeholder: Хочу видеть, сколько места осталось на диске…
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Как могло бы быть
+    validations:
+      required: true
