@@ -22,6 +22,10 @@ export interface Settings {
   /** Subject keys (see `subjectKey`) the user switched recording off for. */
   disabledSubjects: string[];
   onboarded: boolean;
+  /** System notifications about recordings; the low disk warning is shown regardless. */
+  notifications: boolean;
+  /** Our own recordings older than this many days go to the trash; 0 keeps them forever. */
+  keepDays: number;
 }
 
 export interface Lesson {

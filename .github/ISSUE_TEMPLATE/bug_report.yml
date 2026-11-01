@@ -17,7 +17,7 @@ body:
     id: version
     attributes:
       label: Версия приложения
-      description: Видна в разделе «О программе».
+      description: Видна в разделе «О приложении».
       placeholder: 0.1.0
     validations:
       required: true
@@ -42,5 +42,7 @@ body:
   - type: textarea
     id: extra
     attributes:
-      label: Скриншоты и подробности
-      description: Перетащите сюда скриншот или вставьте текст ошибки.
+      label: Журнал, скриншоты и подробности
+      description: >-
+        В разделе «О приложении» нажмите «Журнал работы» и перетащите сюда файл app.log —
+        по нему видно, что приложение делало во время пары. Скриншоты тоже пригодятся.

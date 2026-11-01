@@ -22,6 +22,8 @@ export interface Api {
   openExternalPlayer(file: string): Promise<void>;
   trashRecording(file: string): Promise<void>;
   openRepo(): Promise<void>;
+  /** Shows the diagnostic log in the file manager, to attach it to a bug report. */
+  showLog(): Promise<void>;
   checkUpdates(): Promise<UpdateInfo | null>;
   /** Restarts into the downloaded update; refused while a lesson is being recorded. */
   installUpdate(): Promise<void>;
@@ -33,7 +35,7 @@ export const API_CHANNELS: readonly ApiChannel[] = [
   'getInfo', 'getSettings', 'saveSettings', 'chooseFolder', 'listGroups', 'checkGroup', 'getSchedule',
   'refreshSchedule', 'setSubjectEnabled', 'getStatus', 'getPreview', 'stopRecording', 'recordNow',
   'listRecordings', 'openFolder', 'getDiskSpace', 'showRecording', 'openExternalPlayer', 'trashRecording', 'openRepo',
-  'checkUpdates', 'installUpdate',
+  'showLog', 'checkUpdates', 'installUpdate',
 ];
 
 /** Events pushed from main to the UI. */

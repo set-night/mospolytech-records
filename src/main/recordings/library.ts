@@ -122,3 +122,31 @@ export async function trashRecording(folder: string, file: string, trash: (path:
   await trash(path);
   rmSync(metaPath(path, folder), { force: true });
 }
+
+const DAY = 24 * 60 * 60_000;
+
+/**
+ * Trashes recordings this app made more than `keepDays` ago. Videos dropped into the
+ * folder by hand and the one being written now are never touched. Returns how many went.
+ */
+export async function cleanupRecordings(
+  folder: string,
+  keepDays: number,
+  now: number,
+  recordingFile: string | null,
+  trash: (path: string) => Promise<void>,
+): Promise<number> {
+  if (keepDays <= 0) return 0;
+  let removed = 0;
+  for (const recording of listRecordings(folder, recordingFile)) {
+    const own = readMeta(folder, recording.file) !== null;
+    if (!own || recording.file === recordingFile || now - recording.startedAt < keepDays * DAY) continue;
+    try {
+      await trashRecording(folder, recording.file, trash);
+      removed += 1;
+    } catch {
+      // Locked by a player or already gone: try again next time.
+    }
+  }
+  return removed;
+}

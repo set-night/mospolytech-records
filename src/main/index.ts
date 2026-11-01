@@ -3,10 +3,12 @@ import { app, BrowserWindow, Notification, powerMonitor, powerSaveBlocker, shell
 import { APP_NAME, LESSON_BYTES } from '@shared/types';
 import { applyAutoStart, startedHidden } from './autostart';
 import { registerIpc, send, type Context } from './ipc';
+import { initLog, logError, logInfo } from './log';
 import { handleMedia, registerMediaScheme } from './media';
 import { loadPage, preloadPath } from './pages';
 import { Recorder } from './recorder/recorder';
 import { freeSpace } from './recordings/disk';
+import { cleanupRecordings } from './recordings/library';
 import { ScheduleService } from './schedule/service';
 import { defaultFolder, SettingsStore } from './settings/store';
 import { AppTray, iconPath } from './tray';
@@ -28,11 +30,15 @@ async function main(): Promise<void> {
 
   await app.whenReady();
   const data = app.getPath('userData');
+  const logFile = initLog(app.getPath('logs'));
+  logInfo(`${APP_NAME} ${app.getVersion()} on ${process.platform} ${process.arch}`);
+  process.on('uncaughtException', (error) => logError('Uncaught exception', error));
+  process.on('unhandledRejection', (error) => logError('Unhandled rejection', error));
   const settings = new SettingsStore(join(data, 'settings.json'), defaultFolder(app.getPath('documents')));
   const schedule = new ScheduleService(join(data, 'schedule.json'), () => settings.get().group);
   const recorder = new Recorder(settings, schedule);
   const updater = new Updater(app.getVersion());
-  const context: Context = { settings, schedule, recorder, updater, window: () => window, quit: (restart) => quit(restart) };
+  const context: Context = { settings, schedule, recorder, updater, window: () => window, logFile, quit: (restart) => quit(restart) };
 
   function open(page?: string): void {
     if (!window || window.isDestroyed()) {
@@ -79,9 +85,10 @@ async function main(): Promise<void> {
     if (!updater.install(restart)) app.exit(0);
   }
 
-  function notify(title: string, body: string, page?: string): void {
-    if (!Notification.isSupported()) return;
-    const notification = new Notification({ title, body });
+  function notify(title: string, body: string, page?: string, options: { silent?: boolean; always?: boolean } = {}): void {
+    logInfo(`Notification: ${title} — ${body}`);
+    if (!Notification.isSupported() || (!options.always && !settings.get().notifications)) return;
+    const notification = new Notification({ title, body, silent: options.silent ?? false });
     if (page) notification.on('click', () => open(page));
     notification.show();
   }
@@ -93,7 +100,7 @@ async function main(): Promise<void> {
     if (free === null) return;
     const low = free < 2 * LESSON_BYTES[quality];
     if (low && !lowSpaceWarned) {
-      notify('Мало места на диске', 'Осталось меньше чем на две пары. Освободи место или выбери другую папку в настройках.', 'settings');
+      notify('Мало места на диске', 'Осталось меньше чем на две пары. Освободи место или выбери другую папку в настройках.', 'settings', { always: true });
     }
     lowSpaceWarned = low;
   }
@@ -113,7 +120,11 @@ async function main(): Promise<void> {
   let spaceTimer: NodeJS.Timeout | null = null;
   let blocker: number | null = null;
   let lastFile: string | null = null;
+  let lastLogged = '';
   recorder.onStatus((status) => {
+    const line = `${status.state}${status.lesson ? ` «${status.lesson.subject}» ${status.lesson.date} ${status.lesson.startTime}` : ''}${status.message ? ` — ${status.message}` : ''}`;
+    if (line !== lastLogged) logInfo(`Recorder: ${line}`);
+    lastLogged = line;
     tray.update(status);
     send(context, 'status', status);
     const active = status.state !== 'idle';
@@ -132,33 +143,55 @@ async function main(): Promise<void> {
       blocker = null;
     }
     if (status.file !== lastFile) {
-      if (status.file && Notification.isSupported()) {
-        const started = new Notification({ title: 'Запись началась', body: status.lesson?.subject ?? '', silent: true });
-        started.on('click', () => open('status'));
-        started.show();
-      }
+      if (status.file) notify('Запись началась', status.lesson?.subject ?? '', 'status', { silent: true });
       lastFile = status.file;
       send(context, 'recordings', null);
     }
   });
   recorder.onFinished(({ lesson, file, message }) => {
+    logInfo(`Finished «${lesson.subject}»: ${file ?? `not recorded (${message ?? 'no reason'})`}`);
     if (file) notify('Запись сохранена', lesson.subject, 'recordings');
     else notify('Пара не записана', `${lesson.subject}${message ? ` — ${message}` : ''}`, 'status');
   });
   updater.onChange((info) => {
+    logInfo(`Update ${info.latest}: ${info.stage}${info.stage === 'downloading' ? ` ${info.percent ?? 0}%` : ''}`);
     send(context, 'update', info);
     tray.updateReady(info.stage === 'ready' ? info.latest : null);
   });
-  schedule.onChange((state) => send(context, 'schedule', state));
+  let scheduleError: string | null = null;
+  schedule.onChange((state) => {
+    if (state.error && state.error !== scheduleError) logError(`Schedule: ${state.error}`);
+    scheduleError = state.error;
+    send(context, 'schedule', state);
+  });
+
+  async function cleanup(): Promise<void> {
+    const { folder, keepDays } = settings.get();
+    try {
+      const removed = await cleanupRecordings(folder, keepDays, Date.now(), recorder.status().file, (path) => shell.trashItem(path));
+      if (!removed) return;
+      logInfo(`Cleanup: ${removed} recording(s) older than ${keepDays} days moved to the trash`);
+      send(context, 'recordings', null);
+    } catch (error) {
+      logError('Cleanup failed', error);
+    }
+  }
+  setInterval(() => void cleanup(), 6 * 60 * 60_000);
   let autoStart = settings.get().autoStart;
   applyAutoStart(autoStart);
+  let keepDays = settings.get().keepDays;
   settings.onChange((value) => {
     send(context, 'settings', value);
+    if (value.keepDays !== keepDays) {
+      keepDays = value.keepDays;
+      void cleanup();
+    }
     if (value.autoStart !== autoStart) applyAutoStart((autoStart = value.autoStart));
   });
 
   // After sleep the timetable may be stale and a lesson may already be on.
   powerMonitor.on('resume', () => {
+    logInfo('System resumed');
     void schedule.refresh().catch(() => undefined);
     recorder.start();
   });
@@ -176,6 +209,7 @@ async function main(): Promise<void> {
 
   schedule.start();
   recorder.start();
+  void cleanup();
   tray.update(recorder.status());
   if (!startedHidden() || !settings.get().onboarded) open();
   updater.start();

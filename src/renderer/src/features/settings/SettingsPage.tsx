@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { FolderOpen, Gauge, Power, UserRound, Users } from 'lucide-react';
+import { Bell, FolderOpen, Gauge, Power, Trash2, UserRound, Users } from 'lucide-react';
 import type { DiskSpace, Quality, Settings } from '@shared/types';
 import { fileSize } from '../../shared/format';
 import { errorText, useAction } from '../../shared/hooks';
@@ -9,6 +9,13 @@ const QUALITY: { value: Quality; label: string; hint: string }[] = [
   { value: 'low', label: 'Экономно', hint: '≈ 0,5 ГБ за пару' },
   { value: 'medium', label: 'Обычное', hint: '≈ 1 ГБ за пару' },
   { value: 'high', label: 'Чётко', hint: '≈ 2 ГБ за пару' },
+];
+
+const KEEP: { value: number; label: string }[] = [
+  { value: 0, label: 'Всегда' },
+  { value: 30, label: 'Месяц' },
+  { value: 90, label: '3 мес.' },
+  { value: 180, label: 'Полгода' },
 ];
 
 function lessonsWord(count: number): string {
@@ -127,6 +134,27 @@ export function SettingsPage({ settings }: { settings: Settings }) {
               </button>
             ))}
           </div>
+        </Row>
+
+        <Row icon={<Trash2 size={18} />} title="Хранить записи" hint="Старые записи сами уйдут в корзину. Файлы, добавленные вручную, не трогаем">
+          <div className="segmented" role="radiogroup" aria-label="Хранить записи">
+            {KEEP.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={settings.keepDays === option.value}
+                className={settings.keepDays === option.value ? 'segmented-on' : ''}
+                onClick={() => void save.run({ keepDays: option.value })}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+
+        <Row icon={<Bell size={18} />} title="Уведомления" hint="Когда запись началась, сохранена или не удалась. О нехватке места предупредим всегда">
+          <Switch label="Уведомления" checked={settings.notifications} onChange={(notifications) => void save.run({ notifications })} />
         </Row>
 
         <Row icon={<Power size={18} />} title="Запускать вместе с компьютером" hint="Приложение тихо стартует в трее и ничего не пропустит">

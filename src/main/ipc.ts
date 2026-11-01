@@ -18,6 +18,7 @@ export interface Context {
   recorder: Recorder;
   updater: Updater;
   window: () => BrowserWindow | null;
+  logFile: string;
   /** Quits the app, installing a downloaded update and starting again if asked. */
   quit: (restart: boolean) => Promise<void>;
 }
@@ -100,6 +101,7 @@ function handlers(context: Context): Handlers {
       await trashRecording(settings.get().folder, path, (target) => shell.trashItem(target));
     },
     openRepo: () => shell.openExternal(REPO_URL),
+    showLog: () => shell.showItemInFolder(context.logFile),
     checkUpdates: () => updater.check().catch(() => updater.state()),
     installUpdate: async () => {
       if (recorder.status().state !== 'idle') throw new Error('Сейчас идёт пара — обновлю после неё');

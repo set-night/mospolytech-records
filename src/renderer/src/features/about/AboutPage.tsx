@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, ShieldCheck } from 'lucide-react';
+import { ExternalLink, FileText, ShieldCheck } from 'lucide-react';
 import { APP_NAME, type AppInfo, type RecorderStatus, type UpdateInfo } from '@shared/types';
 import { Button, Logo } from '../../shared/ui';
 import { UpdateBanner } from './UpdateBanner';
@@ -23,9 +23,10 @@ export function AboutPage({ update, status }: { update: UpdateInfo | null; statu
         </p>
         <div className="about-actions">
           <Button variant="primary" icon={<ExternalLink size={16} />} onClick={() => void window.api.openRepo()}>Проект на GitHub</Button>
+          <Button icon={<FileText size={16} />} onClick={() => void window.api.showLog()}>Журнал работы</Button>
         </div>
         <p className="muted small about-note">
-          <ShieldCheck size={14} /> Открытый код под лицензией MIT. Нашёл ошибку или есть идея — открой issue на GitHub.
+          <ShieldCheck size={14} /> Открытый код под лицензией MIT. Нашёл ошибку — открой issue на GitHub и приложи журнал работы.
         </p>
       </div>
     </div>
