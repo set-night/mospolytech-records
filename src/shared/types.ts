@@ -1,6 +1,9 @@
 export const REPO_URL = 'https://github.com/set-night/mospolytech-records';
 export const APP_NAME = 'MosPolytech Records';
 
+/** Rooms often open before the bell, so the recorder joins this early. */
+export const JOIN_LEAD = 5 * 60_000;
+
 export type Quality = 'low' | 'medium' | 'high';
 
 export interface Settings {

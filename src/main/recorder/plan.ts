@@ -1,7 +1,7 @@
-import type { Lesson } from '@shared/types';
+import { JOIN_LEAD, type Lesson } from '@shared/types';
 
 /** Join this early: rooms often open before the bell. */
-export const LEAD = 5 * 60_000;
+export const LEAD = JOIN_LEAD;
 /** Keep recording after the bell unless the room ends or the next lesson needs us. */
 export const GRACE = 15 * 60_000;
 
