@@ -1,0 +1,66 @@
+# Installers for every OS. Artifact names carry no version so that README links
+# to releases/latest/download/<name> never go stale.
+appId: io.github.set-night.mospolytech-records
+productName: MosPolytech Records
+copyright: Copyright © 2026 mospolytech-records contributors
+
+directories:
+  output: dist
+  buildResources: resources/icons
+
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: resources/icons
+    to: icons
+    filter: ['tray*.png', 'icon.png']
+
+win:
+  icon: resources/icons/512x512.png
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: msi
+      arch: [x64]
+nsis:
+  artifactName: MosPolytech-Records-Setup-${arch}.${ext}
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: MosPolytech Records
+msi:
+  artifactName: MosPolytech-Records-${arch}.${ext}
+  perMachine: true
+  createDesktopShortcut: always
+
+mac:
+  icon: resources/icons/512x512.png
+  category: public.app-category.education
+  # No Apple Developer ID: ad-hoc signature, which Apple Silicon requires to launch at all.
+  identity: '-'
+  hardenedRuntime: false
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+dmg:
+  artifactName: MosPolytech-Records-${arch}.${ext}
+
+linux:
+  syncDesktopName: true
+  icon: resources/icons/512x512.png
+  category: Education
+  maintainer: set-night <set-night@users.noreply.github.com>
+  synopsis: Записывает вебинары МТС Линк по расписанию Мосполитеха
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+appImage:
+  artifactName: MosPolytech-Records-${arch}.${ext}
+deb:
+  artifactName: MosPolytech-Records-${arch}.${ext}
+
+publish: null

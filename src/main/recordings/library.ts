@@ -24,7 +24,7 @@ const metaSchema = z.object({
 
 /** Characters Windows, macOS and Linux all accept in a file name. */
 function safeName(value: string): string {
-  return value.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').replace(/[. ]+$/, '').trim().slice(0, 120);
+  return value.replace(/[<>:"/\\|?*\p{Cc}]/gu, ' ').replace(/\s+/g, ' ').replace(/[. ]+$/, '').trim().slice(0, 120);
 }
 
 /** `2026-11-02 09-00 Физика (Лекция).mp4`, with a part number for reconnects. */

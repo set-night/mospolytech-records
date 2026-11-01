@@ -20,10 +20,7 @@ export function StatusCard({ status }: { status: RecorderStatus }) {
   const active = status.state !== 'idle';
 
   useEffect(() => {
-    if (!active) {
-      setPreview(null);
-      return;
-    }
+    if (!active) return;
     let alive = true;
     const load = (): void => void window.api.getPreview().then((image) => alive && setPreview(image));
     load();
@@ -31,6 +28,7 @@ export function StatusCard({ status }: { status: RecorderStatus }) {
     return () => {
       alive = false;
       clearInterval(timer);
+      setPreview(null);
     };
   }, [active]);
 

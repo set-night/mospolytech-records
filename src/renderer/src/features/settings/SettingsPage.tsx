@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { FolderOpen, Gauge, Power, UserRound, Users } from 'lucide-react';
 import type { Quality, Settings } from '@shared/types';
 import { errorText, useAction } from '../../shared/hooks';
@@ -34,8 +34,13 @@ export function SettingsPage({ settings }: { settings: Settings }) {
     if (folder) await window.api.saveSettings({ folder });
   });
 
-  useEffect(() => setGroup(settings.group), [settings.group]);
-  useEffect(() => setNickname(settings.nickname), [settings.nickname]);
+  // Saved elsewhere (tray, onboarding): take the new value into the field.
+  const [seen, setSeen] = useState(settings);
+  if (seen !== settings) {
+    setSeen(settings);
+    if (seen.group !== settings.group) setGroup(settings.group);
+    if (seen.nickname !== settings.nickname) setNickname(settings.nickname);
+  }
 
   async function saveGroup(): Promise<void> {
     setGroupError(null);

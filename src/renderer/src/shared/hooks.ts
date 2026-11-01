@@ -4,7 +4,9 @@ import type { RecorderStatus, ScheduleState, Settings } from '@shared/types';
 
 export function useEvent<E extends EventName>(event: E, listener: (payload: Events[E]) => void): void {
   const ref = useRef(listener);
-  ref.current = listener;
+  useEffect(() => {
+    ref.current = listener;
+  });
   useEffect(() => window.api.on(event, (payload) => ref.current(payload)), [event]);
 }
 
@@ -28,7 +30,7 @@ export const useStatus = (): RecorderStatus | null => useLive('status', () => wi
 
 /** Re-renders every `ms`; returns the current time. */
 export function useNow(ms = 30_000): number {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), ms);
     return () => clearInterval(timer);
