@@ -26,7 +26,8 @@ export function AboutPage({ update, status }: { update: UpdateInfo | null; statu
           <Button icon={<FileText size={16} />} onClick={() => void window.api.showLog()}>Журнал работы</Button>
         </div>
         <p className="muted small about-note">
-          <ShieldCheck size={14} /> Открытый код под лицензией MIT. Нашёл ошибку — открой issue на GitHub и приложи журнал работы.
+          <ShieldCheck size={16} />
+          <span>Открытый код под лицензией MIT. Нашёл ошибку — открой issue на GitHub и приложи журнал работы.</span>
         </p>
       </div>
     </div>

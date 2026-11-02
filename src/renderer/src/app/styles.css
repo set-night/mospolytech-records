@@ -257,7 +257,7 @@ code {
 .search input { flex: 1; border: 0; background: none; padding: 11px 0; box-shadow: none; }
 .date-title { font-size: 14px; color: var(--muted); }
 .recording-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-.recording { display: grid; overflow: hidden; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); }
+.recording { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; overflow: hidden; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); }
 .recording-thumb {
   position: relative; aspect-ratio: 16 / 7; display: grid; place-items: center; border: 0; cursor: pointer; color: var(--text);
   background: var(--surface-3);
@@ -266,9 +266,12 @@ code {
 .recording-thumb:hover:not(:disabled) svg { transform: scale(1.15); }
 .recording-thumb:disabled { cursor: default; opacity: 0.7; }
 .recording-time { position: absolute; left: 10px; bottom: 8px; padding: 2px 8px; border-radius: 6px; background: rgb(0 0 0 / 0.45); color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; }
-.recording-body { display: grid; gap: 6px; padding: 12px 14px 10px; }
-.recording-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.recording-body { display: grid; gap: 6px; min-width: 0; padding: 12px 14px 10px; }
+.recording-title { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 22px; }
 .recording-title h3 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recording-meta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12.5px; }
+.recording-meta span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recording-meta span:last-child { flex: none; font-variant-numeric: tabular-nums; }
 .recording-actions { display: flex; gap: 2px; margin: 2px -6px 0; }
 
 .modal { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 32px; background: rgb(0 0 0 / 0.7); backdrop-filter: blur(6px); }
@@ -297,7 +300,11 @@ code {
 .about-hero { display: grid; justify-items: center; gap: 10px; text-align: center; padding: 32px 0; }
 .about-text { max-width: 480px; margin-top: 8px; }
 .about-actions { display: flex; gap: 8px; margin-top: 8px; }
-.about-note { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+.about-note {
+  display: flex; align-items: flex-start; gap: 10px; max-width: 480px; margin-top: 16px; padding: 12px 14px;
+  text-align: left; border-radius: 12px; background: var(--surface); border: 1px solid var(--border);
+}
+.about-note svg { flex: none; margin-top: 1px; color: var(--ok); }
 .update-banner {
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; padding: 14px 16px;
   border-radius: var(--radius); background: var(--accent-soft); border: 1px solid rgb(99 102 241 / 0.4); color: var(--accent-text);
@@ -307,9 +314,21 @@ code {
 .page > .update-banner { margin-bottom: 20px; }
 .disk-low { color: var(--live); }
 
-@media (max-width: 920px) {
-  .status-card, .schedule-layout { grid-template-columns: 1fr; }
-  .subjects { position: static; }
-  .layout { grid-template-columns: 200px 1fr; }
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: 68px 1fr; }
+  .sidebar { padding: 18px 10px; align-items: center; }
+  .brand { padding: 0 0 6px; }
+  .brand div, .nav-item > span:not([class]), .sidebar-foot { display: none; }
+  .nav-item { position: relative; justify-content: center; padding: 11px; }
+  .live-dot, .update-dot { position: absolute; top: 6px; right: 6px; }
   .page { padding: 24px; }
+}
+
+@media (max-width: 860px) {
+  .status-card, .schedule-layout { grid-template-columns: 1fr; }
+  .status-preview { max-width: 420px; }
+  .subjects { position: static; }
+  .setting { grid-template-columns: 38px 1fr; }
+  .setting-control { grid-column: 2; justify-content: flex-start; max-width: none; }
+  .setting-control .folder-picker { width: 100%; }
 }

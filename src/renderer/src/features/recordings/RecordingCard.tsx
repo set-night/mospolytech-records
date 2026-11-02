@@ -27,7 +27,10 @@ export function RecordingCard({ recording, onPlay, onChanged }: { recording: Rec
           {live && <Badge tone="live">Пишется</Badge>}
           {recording.status === 'partial' && <Badge tone="warn" >Неполная</Badge>}
         </div>
-        <p className="muted small">{[recording.type, recording.teacher, fileSize(recording.size)].filter(Boolean).join(' · ')}</p>
+        <p className="recording-meta">
+          <span>{[recording.type, recording.teacher].filter(Boolean).join(' · ')}</span>
+          <span>{fileSize(recording.size)}</span>
+        </p>
         {recording.note && <p className="muted small">{recording.note}</p>}
         <div className="recording-actions">
           <Button variant="ghost" icon={<FolderSearch size={15} />} title="Показать в папке" onClick={() => void show.run()} />

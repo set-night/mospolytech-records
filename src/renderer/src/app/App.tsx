@@ -53,7 +53,7 @@ export function App() {
         <ul>
           {PAGES.map(({ id, label, icon: Icon }) => (
             <li key={id}>
-              <button type="button" className={`nav-item ${page === id ? 'nav-active' : ''}`} onClick={() => setPage(id)}>
+              <button type="button" className={`nav-item ${page === id ? 'nav-active' : ''}`} title={label} onClick={() => setPage(id)}>
                 <Icon size={18} />
                 <span>{label}</span>
                 {id === 'status' && live && <span className="live-dot" aria-label="Идёт запись" />}
