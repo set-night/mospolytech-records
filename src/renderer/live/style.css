@@ -2,7 +2,7 @@ html, body {
   margin: 0;
   height: 100%;
   background: #000;
-  color: #f4f4f5;
+  color: #ececec;
   font: 14px system-ui, sans-serif;
   overflow: hidden;
 }
@@ -19,7 +19,7 @@ video {
   display: grid;
   place-items: center;
   margin: 0;
-  color: #a1a1aa;
+  color: #9a9a9a;
 }
 #wait[hidden] { display: none; }
 #bar {
@@ -34,7 +34,7 @@ video {
   max-width: calc(100% - 32px);
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgb(24 24 27 / 0.88);
+  background: rgb(31 31 31 / 0.9);
   box-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
   transition: opacity 0.3s;
 }
@@ -51,15 +51,15 @@ body.idle { cursor: none; }
 button, input {
   font: inherit;
   color: inherit;
-  border: 1px solid #3f3f46;
+  border: 1px solid #3a3a3a;
   border-radius: 9px;
-  background: #27272a;
+  background: #2a2a2a;
   padding: 7px 12px;
 }
 button { cursor: pointer; }
-button:hover { background: #3f3f46; }
+button:hover { background: #3a3a3a; }
 button:disabled { opacity: 0.5; cursor: default; }
 input { width: 280px; outline: none; }
 input:focus { border-color: #818cf8; }
-#note { color: #a1a1aa; }
+#note { color: #9a9a9a; }
 #note.error { color: #f87171; }

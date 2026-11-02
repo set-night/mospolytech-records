@@ -49,7 +49,7 @@ async function main(): Promise<void> {
         minHeight: 600,
         show: false,
         title: APP_NAME,
-        backgroundColor: '#0f1020',
+        backgroundColor: '#171717',
         icon: iconPath('icon.png'),
         autoHideMenuBar: true,
         webPreferences: { preload: preloadPath('index'), sandbox: true, contextIsolation: true },
