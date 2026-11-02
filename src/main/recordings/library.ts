@@ -99,6 +99,8 @@ export function listRecordings(folder: string, recordingFile: string | null): Re
 
 function fallbackMeta(name: string, mtime: number): RecordingMeta {
   const match = /^(\d{4}-\d{2}-\d{2}) (\d{2})-(\d{2}) (.+?)(?: \(([^)]+)\))?(?: — часть \d+)?\.\w+$/.exec(name);
+  // The name keeps the lesson start; mtime changes when a file is copied or moved.
+  const named = match ? new Date(`${match[1]}T${match[2]}:${match[3]}:00`).getTime() : NaN;
   return {
     lessonId: '',
     subject: match?.[4] ?? name.replace(/\.\w+$/, ''),
@@ -108,7 +110,7 @@ function fallbackMeta(name: string, mtime: number): RecordingMeta {
     startTime: match ? `${match[2]}:${match[3]}` : '',
     endTime: '',
     link: '',
-    startedAt: mtime,
+    startedAt: Number.isNaN(named) ? mtime : named,
     finishedAt: mtime,
     status: 'done',
     note: null,
