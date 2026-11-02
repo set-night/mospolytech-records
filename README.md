@@ -24,7 +24,7 @@
 [![macOS Intel](https://img.shields.io/badge/macOS-Intel-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x64.dmg)
 [![Linux](https://img.shields.io/badge/Linux-AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x86_64.AppImage)
 
-<sub><a href="https://set-night.github.io/mospolytech-records/">Сайт проекта</a> · Другие форматы — <a href="https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x64.msi">.msi</a> для Windows и
+<sub>Другие форматы — <a href="https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x64.msi">.msi</a> для Windows и
 <a href="https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-amd64.deb">.deb</a> для Ubuntu/Debian — и все версии на странице
 <a href="https://github.com/set-night/mospolytech-records/releases">релизов</a>.</sub>
 

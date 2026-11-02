@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://set-night.github.io/mospolytech-records/sitemap.xml
