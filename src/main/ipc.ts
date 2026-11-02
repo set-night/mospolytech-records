@@ -2,6 +2,7 @@ import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
 import { z } from 'zod';
 import type { Api, ApiChannel, EventName, Events } from '@shared/api';
 import { API_CHANNELS } from '@shared/api';
+import { chatText } from '@shared/live';
 import { LESSON_BYTES, REPO_URL } from '@shared/types';
 import type { Recorder } from './recorder/recorder';
 import { freeSpace } from './recordings/disk';
@@ -80,6 +81,8 @@ function handlers(context: Context): Handlers {
     getPreview: () => recorder.preview(),
     stopRecording: () => recorder.stopCurrent(),
     recordNow: ([id]) => recorder.recordNow(text.parse(id)),
+    watchLesson: () => recorder.watch(),
+    sendChat: ([message]) => recorder.sendChat(chatText(message)),
     listRecordings: () => listRecordings(settings.get().folder, recorder.status().file),
     openFolder: async () => {
       const error = await shell.openPath(settings.get().folder);

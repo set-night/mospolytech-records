@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+    <title>Пара</title>
+  </head>
+  <body>
+    <video id="video" autoplay muted playsinline></video>
+    <p id="wait">Подключаюсь к вебинару…</p>
+    <div id="bar">
+      <span id="title"></span>
+      <button id="sound" type="button" title="Звук (M)">Включить звук</button>
+      <button id="screen" type="button" title="Во весь экран (F)">Свернуть в окно</button>
+      <form id="chat">
+        <input id="message" maxlength="500" placeholder="Сообщение в чат пары" autocomplete="off" />
+        <button type="submit">Отправить</button>
+      </form>
+      <span id="note"></span>
+    </div>
+    <script type="module" src="./live/main.ts"></script>
+  </body>
+</html>

@@ -57,6 +57,17 @@ export class Recorder {
     return this.current?.preview() ?? Promise.resolve(null);
   }
 
+  /** Opens the lesson being recorded in its own window. */
+  watch(): void {
+    if (!this.current) throw new Error('Сейчас ничего не записывается');
+    this.current.watch();
+  }
+
+  sendChat(text: string): Promise<void> {
+    if (!this.current) return Promise.reject(new Error('Сейчас ничего не записывается'));
+    return this.current.sendChat(text);
+  }
+
   /** The user pressed stop: do not restart this lesson. */
   async stopCurrent(): Promise<void> {
     const session = this.current;

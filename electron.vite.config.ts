@@ -17,6 +17,7 @@ export default defineConfig({
         input: {
           index: resolve('src/preload/index.ts'),
           capture: resolve('src/preload/capture.ts'),
+          live: resolve('src/preload/live.ts'),
         },
         // Sandboxed preloads cannot load ES modules.
         output: { format: 'cjs', entryFileNames: '[name].cjs' },
@@ -31,6 +32,7 @@ export default defineConfig({
         input: {
           index: resolve('src/renderer/index.html'),
           capture: resolve('src/renderer/capture.html'),
+          live: resolve('src/renderer/live.html'),
         },
       },
     },

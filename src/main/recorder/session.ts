@@ -1,9 +1,12 @@
 import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs';
-import { app, BrowserWindow, ipcMain, powerSaveBlocker, session, type IpcMainEvent } from 'electron';
+import { app, BrowserWindow, ipcMain, powerSaveBlocker, session, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { CAPTURE_CHANNELS, type CaptureOptions } from '@shared/capture';
+import { chatText, LIVE_CHANNELS } from '@shared/live';
 import type { Lesson, Quality, RecordingMeta } from '@shared/types';
 import { freePath, recordingName, writeMeta } from '../recordings/library';
 import { preloadPath, loadPage } from '../pages';
+import { iconPath } from '../tray';
+import { chatScript, type ChatProbe } from './chat';
 import { CLICK_TARGET, probeScript, webinarRoom, type Probe } from './probe';
 
 export type SessionPhase = 'joining' | 'waiting' | 'recording' | 'finished';
@@ -27,6 +30,8 @@ const QUALITY: Record<Quality, CaptureOptions> = {
 const CAPTURE_PARTITION = 'mpr-capture';
 const SECOND = 1000;
 
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * One lesson: joins the room in an invisible window, records it through a
  * hidden capture page and keeps rejoining until the room ends or time runs out.
@@ -40,6 +45,8 @@ export class RecordingSession {
 
   private meeting: BrowserWindow | null = null;
   private capture: BrowserWindow | null = null;
+  private viewer: BrowserWindow | null = null;
+  private chatting = false;
   private stream: WriteStream | null = null;
   private meta: RecordingMeta | null = null;
   private part = 0;
@@ -71,6 +78,10 @@ export class RecordingSession {
       [CAPTURE_CHANNELS.chunk]: (event, data) => this.fromCapture(event) && data instanceof ArrayBuffer && this.onChunk(data),
       [CAPTURE_CHANNELS.stopped]: (event) => this.fromCapture(event) && this.onStopped(),
       [CAPTURE_CHANNELS.error]: (event, message) => this.fromCapture(event) && this.onCaptureError(String(message)),
+      [LIVE_CHANNELS.fullscreen]: (event, on) => {
+        const viewer = this.fromViewer(event);
+        viewer?.setFullScreen(typeof on === 'boolean' ? on : !viewer.isFullScreen());
+      },
     };
   }
 
@@ -89,6 +100,10 @@ export class RecordingSession {
 
   start(): void {
     for (const [channel, handler] of Object.entries(this.handlers)) ipcMain.on(channel, handler);
+    ipcMain.handle(LIVE_CHANNELS.chat, (event: IpcMainInvokeEvent, text: unknown) => {
+      if (!this.fromViewer(event)) throw new Error('Forbidden');
+      return this.sendChat(chatText(text));
+    });
     session.fromPartition(CAPTURE_PARTITION).setDisplayMediaRequestHandler((_request, callback) => {
       const frame = this.meeting?.webContents.mainFrame;
       // Capturing the frame (not the screen) also keeps its audio off the speakers.
@@ -110,6 +125,101 @@ export class RecordingSession {
     if (!this.meeting || this.meeting.isDestroyed()) return null;
     const image = await this.meeting.webContents.capturePage();
     return image.isEmpty() ? null : image.resize({ width: 640 }).toDataURL();
+  }
+
+  /**
+   * Opens the lesson in a window of its own, fullscreen and muted. It shows the
+   * same frame the recording captures, so watching never disturbs the file.
+   */
+  watch(): void {
+    if (this.phase !== 'recording') throw new Error('Смотреть можно, когда идёт запись');
+    if (this.viewer && !this.viewer.isDestroyed()) {
+      if (this.viewer.isMinimized()) this.viewer.restore();
+      this.viewer.show();
+      this.viewer.focus();
+      return;
+    }
+    const viewer = new BrowserWindow({
+      width: 1280,
+      height: 760,
+      show: false,
+      title: this.config.lesson.subject,
+      backgroundColor: '#000000',
+      icon: iconPath('icon.png'),
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: preloadPath('live'),
+        // Its getDisplayMedia is answered with the webinar frame, like the recorder's.
+        partition: CAPTURE_PARTITION,
+        sandbox: true,
+        contextIsolation: true,
+      },
+    });
+    // Some window managers ignore `fullscreen` on a window that is not shown yet.
+    viewer.once('ready-to-show', () => {
+      viewer.show();
+      viewer.setFullScreen(true);
+    });
+    viewer.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    viewer.webContents.on('will-navigate', (event) => event.preventDefault());
+    viewer.on('closed', () => { if (this.viewer === viewer) this.viewer = null; });
+    this.viewer = viewer;
+    void loadPage(viewer, 'live', encodeURIComponent(this.config.lesson.subject)).catch(() => undefined);
+  }
+
+  /** Types a message into the room's chat under the recorder's name. */
+  async sendChat(text: string): Promise<void> {
+    if (this.phase !== 'recording' || !this.meeting) throw new Error('Писать в чат можно, когда идёт запись');
+    if (this.chatting) throw new Error('Предыдущее сообщение ещё отправляется');
+    this.chatting = true;
+    try {
+      await this.typeChat(text);
+    } finally {
+      this.chatting = false;
+    }
+  }
+
+  private async typeChat(text: string): Promise<void> {
+    let probe = await this.chatProbe();
+    // The panel may be closed; open it just for this message so the recording keeps its layout.
+    const opened = !probe.input && !!probe.toggle;
+    if (!probe.input && probe.toggle) {
+      this.mouseClick(probe.toggle.x, probe.toggle.y);
+      await delay(1500);
+      probe = await this.chatProbe();
+    }
+    if (!probe.input) throw new Error('Не нашёл чат в вебинаре — возможно, его отключили');
+    this.mouseClick(probe.input.x, probe.input.y);
+    await delay(200);
+    if (probe.input.text) this.selectAll();
+    await this.meeting?.webContents.insertText(text);
+    await delay(400);
+    const typed = await this.chatProbe();
+    if (typed.send) {
+      this.mouseClick(typed.send.x, typed.send.y);
+    } else {
+      this.meeting?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
+      this.meeting?.webContents.sendInputEvent({ type: 'char', keyCode: '\r' });
+      this.meeting?.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
+    }
+    await delay(1000);
+    const after = await this.chatProbe();
+    if (opened && after.toggle) this.mouseClick(after.toggle.x, after.toggle.y);
+    // The room clears the field once the message is posted.
+    if (after.input?.text) throw new Error('Сообщение не отправилось — возможно, чат закрыт для слушателей');
+  }
+
+  private async chatProbe(): Promise<ChatProbe> {
+    const empty: ChatProbe = { input: null, toggle: null, send: null };
+    const contents = this.meeting?.webContents;
+    if (!contents || contents.isDestroyed()) return empty;
+    const result = contents.executeJavaScript(chatScript()) as Promise<ChatProbe>;
+    return result.catch(() => empty);
+  }
+
+  private fromViewer(event: IpcMainEvent | IpcMainInvokeEvent): BrowserWindow | null {
+    const viewer = this.viewer;
+    return viewer && !viewer.isDestroyed() && event.sender === viewer.webContents ? viewer : null;
   }
 
   private openMeeting(): void {
@@ -366,9 +476,12 @@ export class RecordingSession {
   private async shutdown(message: string, status: 'done' | 'partial'): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     await this.stopCapture(status, status === 'partial' ? message : null);
+    if (this.viewer && !this.viewer.isDestroyed()) this.viewer.destroy();
+    this.viewer = null;
     if (this.meeting && !this.meeting.isDestroyed()) this.meeting.destroy();
     this.meeting = null;
     for (const [channel, handler] of Object.entries(this.handlers)) ipcMain.removeListener(channel, handler);
+    ipcMain.removeHandler(LIVE_CHANNELS.chat);
     if (this.blocker !== null) powerSaveBlocker.stop(this.blocker);
     this.blocker = null;
     this.update('finished', message);

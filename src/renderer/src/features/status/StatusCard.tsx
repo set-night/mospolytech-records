@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { CircleStop, Clock, Loader2, MonitorPlay, Radio } from 'lucide-react';
+import { CircleStop, Clock, Loader2, Maximize2, MonitorPlay, Radio, Send } from 'lucide-react';
+import { CHAT_LIMIT } from '@shared/live';
 import type { RecorderStatus } from '@shared/types';
 import { duration, until } from '../../shared/format';
 import { useAction, useNow } from '../../shared/hooks';
@@ -16,8 +17,15 @@ const TITLES = {
 export function StatusCard({ status }: { status: RecorderStatus }) {
   const now = useNow(1000);
   const [preview, setPreview] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
   const stop = useAction(() => window.api.stopRecording());
+  const watch = useAction(() => window.api.watchLesson());
+  const chat = useAction(async (text: string) => {
+    await window.api.sendChat(text);
+    setMessage('');
+  });
   const active = status.state !== 'idle';
+  const recording = status.state === 'recording';
 
   useEffect(() => {
     if (!active) return;
@@ -59,15 +67,37 @@ export function StatusCard({ status }: { status: RecorderStatus }) {
         {status.message && <p className="status-message">{status.message}</p>}
         {active && (
           <div className="status-actions">
+            {recording && (
+              <Button variant="primary" icon={<Maximize2 size={16} />} disabled={watch.busy} onClick={() => void watch.run()}>
+                Смотреть
+              </Button>
+            )}
             <Button variant="danger" icon={<CircleStop size={16} />} disabled={stop.busy} onClick={() => void stop.run()}>
               Остановить
             </Button>
           </div>
         )}
-        <ErrorText>{stop.error}</ErrorText>
+        {recording && (
+          <form className="inline-form status-chat" onSubmit={(event) => { event.preventDefault(); if (message.trim()) void chat.run(message.trim()); }}>
+            <input
+              value={message}
+              maxLength={CHAT_LIMIT}
+              placeholder="Написать в чат пары"
+              aria-label="Сообщение в чат пары"
+              disabled={chat.busy}
+              onChange={(event) => setMessage(event.target.value)}
+            />
+            <Button type="submit" icon={<Send size={16} />} disabled={chat.busy || !message.trim()}>Отправить</Button>
+          </form>
+        )}
+        <ErrorText>{stop.error ?? watch.error ?? chat.error}</ErrorText>
       </div>
       <div className="status-preview">
-        {preview ? (
+        {preview && recording ? (
+          <button type="button" className="preview-open" title="Смотреть пару" onClick={() => void watch.run()}>
+            <img src={preview} alt="Что сейчас видно в вебинаре" />
+          </button>
+        ) : preview ? (
           <img src={preview} alt="Что сейчас видно в вебинаре" />
         ) : (
           <div className="preview-placeholder">

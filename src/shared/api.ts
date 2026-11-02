@@ -15,6 +15,10 @@ export interface Api {
   getPreview(): Promise<string | null>;
   stopRecording(): Promise<void>;
   recordNow(lessonId: string): Promise<void>;
+  /** Opens the lesson being recorded in a fullscreen, muted window. */
+  watchLesson(): Promise<void>;
+  /** Posts to the room's chat under the name the app joined with. */
+  sendChat(text: string): Promise<void>;
   listRecordings(): Promise<Recording[]>;
   openFolder(): Promise<void>;
   getDiskSpace(): Promise<DiskSpace>;
@@ -34,7 +38,7 @@ export type ApiChannel = keyof Api;
 export const API_CHANNELS: readonly ApiChannel[] = [
   'getInfo', 'getSettings', 'saveSettings', 'chooseFolder', 'listGroups', 'checkGroup', 'getSchedule',
   'refreshSchedule', 'setSubjectEnabled', 'getStatus', 'getPreview', 'stopRecording', 'recordNow',
-  'listRecordings', 'openFolder', 'getDiskSpace', 'showRecording', 'openExternalPlayer', 'trashRecording', 'openRepo',
+  'watchLesson', 'sendChat', 'listRecordings', 'openFolder', 'getDiskSpace', 'showRecording', 'openExternalPlayer', 'trashRecording', 'openRepo',
   'showLog', 'checkUpdates', 'installUpdate',
 ];
 
