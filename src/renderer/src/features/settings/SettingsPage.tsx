@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Bell, FolderOpen, Gauge, Power, Trash2, UserRound, Users } from 'lucide-react';
 import type { DiskSpace, Quality, Settings } from '@shared/types';
-import { fileSize } from '../../shared/format';
-import { errorText, useAction } from '../../shared/hooks';
+import { errorText } from '@shared/errors';
+import { fileSize, plural } from '../../shared/format';
+import { useAction } from '../../shared/hooks';
 import { Button, ErrorText, PageHeader, Switch } from '../../shared/ui';
 
 const QUALITY: { value: Quality; label: string; hint: string }[] = [
@@ -18,18 +19,9 @@ const KEEP: { value: number; label: string }[] = [
   { value: 180, label: 'Полгода' },
 ];
 
-function lessonsWord(count: number): string {
-  const tens = count % 100;
-  const ones = count % 10;
-  if (tens >= 11 && tens <= 14) return 'пар';
-  if (ones === 1) return 'пару';
-  if (ones >= 2 && ones <= 4) return 'пары';
-  return 'пар';
-}
-
 function spaceHint(space: DiskSpace | null): ReactNode {
   if (space?.free == null || space.lessons == null) return 'Новые записи будут сохраняться сюда';
-  const text = `Свободно ${fileSize(space.free)} — хватит примерно на ${space.lessons} ${lessonsWord(space.lessons)}`;
+  const text = `Свободно ${fileSize(space.free)} — хватит примерно на ${space.lessons} ${plural(space.lessons, 'пару', 'пары', 'пар')}`;
   return space.lessons < 2 ? <span className="disk-low">{text}</span> : text;
 }
 

@@ -8,6 +8,9 @@ const WEBINAR_HOSTS = ['my.mts-link.ru', 'events.webinar.ru', 'my.webinar.ru'];
 
 export class ScheduleError extends Error {}
 
+/** The site answered, but it has no timetable for the group. */
+export class GroupNotFoundError extends ScheduleError {}
+
 /** One schedule cell: either repeating on a weekday within `from..to`, or on one `date`. */
 export interface ScheduleEntry {
   weekday: number | null;
@@ -55,9 +58,14 @@ const responseSchema = z.object({
   }).optional(),
 });
 
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
 function decodeEntities(value: string): string {
-  return value.replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (_, name: string) => (
-    { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", nbsp: ' ' }[name] ?? ''));
+  return value.replace(/&(?:(amp|lt|gt|quot|apos|nbsp)|#(\d{1,7})|#x([0-9a-f]{1,6}));/gi, (match, name?: string, decimal?: string, hex?: string) => {
+    if (name) return ENTITIES[name.toLowerCase()] ?? match;
+    const code = decimal ? Number.parseInt(decimal, 10) : Number.parseInt(hex ?? '', 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+  });
 }
 
 function plain(value: string): string {
@@ -97,7 +105,7 @@ export function parseSchedule(value: unknown): ParsedSchedule {
   const body = responseSchema.safeParse(value);
   if (!body.success) throw new ScheduleError('Сайт расписания вернул неожиданный ответ');
   if (body.data.status !== 'ok' || !body.data.group || !body.data.grid) {
-    throw new ScheduleError(body.data.message || 'Расписание для группы не найдено');
+    throw new GroupNotFoundError(body.data.message || 'Расписание для группы не найдено');
   }
   const { group, grid } = body.data;
   const entries: ScheduleEntry[] = [];
@@ -141,8 +149,16 @@ async function getJson(path: string): Promise<unknown> {
     throw new ScheduleError('Нет связи с rasp.dmami.ru');
   }
   if (!response.ok) throw new ScheduleError(`rasp.dmami.ru ответил ошибкой ${response.status}`);
-  const buffer = await response.arrayBuffer();
-  if (buffer.byteLength > MAX_BYTES) throw new ScheduleError('Слишком большой ответ от rasp.dmami.ru');
+  const tooBig = new ScheduleError('Слишком большой ответ от rasp.dmami.ru');
+  // Do not even download a body the server already says is oversized.
+  if (Number(response.headers.get('content-length')) > MAX_BYTES) throw tooBig;
+  let buffer: ArrayBuffer;
+  try {
+    buffer = await response.arrayBuffer();
+  } catch {
+    throw new ScheduleError('Нет связи с rasp.dmami.ru');
+  }
+  if (buffer.byteLength > MAX_BYTES) throw tooBig;
   try {
     return JSON.parse(new TextDecoder().decode(buffer)) as unknown;
   } catch {
@@ -162,7 +178,7 @@ export async function fetchGroups(): Promise<string[]> {
   return Object.keys(body.data.groups).sort((a, b) => a.localeCompare(b, 'ru'));
 }
 
-/** Normalises user input like ` 231 321 ` to the site's `231-321`. */
+/** Normalises user input like ` 231 321 ` or `231 – 321` to the site's `231-321`. */
 export function normalizeGroup(value: string): string {
-  return value.trim().toUpperCase().replace(/\s+/g, '-').replace(/[–—]/g, '-');
+  return value.trim().toUpperCase().replace(/[\s–—-]+/g, '-');
 }

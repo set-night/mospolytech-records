@@ -25,7 +25,7 @@ export function RecordingCard({ recording, onPlay, onChanged }: { recording: Rec
         <div className="recording-title">
           <h3 title={recording.name}>{recording.subject}</h3>
           {live && <Badge tone="live">Пишется</Badge>}
-          {recording.status === 'partial' && <Badge tone="warn" >Неполная</Badge>}
+          {recording.status === 'partial' && <Badge tone="warn">Неполная</Badge>}
         </div>
         <p className="recording-meta">
           <span>{[recording.type, recording.teacher].filter(Boolean).join(' · ')}</span>

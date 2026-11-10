@@ -15,7 +15,6 @@ const TITLES = {
 
 /** What the recorder is doing, with a live preview of the hidden webinar window. */
 export function StatusCard({ status }: { status: RecorderStatus }) {
-  const now = useNow(1000);
   const [preview, setPreview] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const stop = useAction(() => window.api.stopRecording());
@@ -26,11 +25,14 @@ export function StatusCard({ status }: { status: RecorderStatus }) {
   });
   const active = status.state !== 'idle';
   const recording = status.state === 'recording';
+  // Seconds matter only for the REC timer; "через 5 мин" is fine with a slow clock.
+  const now = useNow(recording ? 1000 : 30_000);
 
   useEffect(() => {
     if (!active) return;
     let alive = true;
-    const load = (): void => void window.api.getPreview().then((image) => alive && setPreview(image));
+    // A failed frame keeps the previous one: the next try is seconds away.
+    const load = (): void => void window.api.getPreview().then((image) => alive && setPreview(image), () => undefined);
     load();
     const timer = setInterval(load, 4000);
     return () => {

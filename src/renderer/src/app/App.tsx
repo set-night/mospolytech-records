@@ -33,7 +33,8 @@ export function App() {
   useEvent('navigate', (target) => setPage(pageFrom(target)));
   useEvent('update', setUpdate);
   useEffect(() => {
-    void window.api.checkUpdates().then((info) => info && setUpdate(info));
+    // Offline at start is normal: the main process checks again later and pushes `update`.
+    void window.api.checkUpdates().then((info) => info && setUpdate(info), () => undefined);
   }, []);
 
   if (!settings) return <div className="splash"><Logo size={56} /></div>;
@@ -69,7 +70,7 @@ export function App() {
       <main className="content">
         {page === 'status' && <HomePage settings={settings} status={status} update={update} onNavigate={setPage} />}
         {page === 'schedule' && <SchedulePage settings={settings} status={status} />}
-        {page === 'recordings' && <RecordingsPage />}
+        {page === 'recordings' && <RecordingsPage folder={settings.folder} />}
         {page === 'settings' && <SettingsPage settings={settings} />}
         {page === 'about' && <AboutPage update={update} status={status} />}
       </main>

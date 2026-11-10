@@ -40,9 +40,13 @@ export function nextToRecord(input: PlanInput): Lesson | null {
   return input.lessons.find((lesson) => lesson.startsAt - LEAD > input.now && wanted(lesson, input)) ?? null;
 }
 
-/** When the current session has to give way. */
-export function stopAt(lesson: Lesson, lessons: readonly Lesson[]): number {
-  const following = lessons.find((other) => other.startsAt >= lesson.endsAt && other.id !== lesson.id && other.link);
+/**
+ * When the current session has to give way: at the bell plus a grace period, or
+ * earlier when the next lesson that will be recorded needs the recorder.
+ */
+export function stopAt(lesson: Lesson, input: PlanInput): number {
+  const following = input.lessons.find((other) => (
+    other.startsAt >= lesson.endsAt && other.id !== lesson.id && other.link && wanted(other, input)));
   const limit = lesson.endsAt + GRACE;
   return following ? Math.max(lesson.endsAt, Math.min(limit, following.startsAt - LEAD)) : limit;
 }

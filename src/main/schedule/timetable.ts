@@ -50,7 +50,9 @@ export function buildLessons(schedule: ParsedSchedule): Lesson[] {
     if (!time) return;
     const key = subjectKey(entry.subject);
     const id = lessonId(date, entry.slot, key, entry.type);
-    if (lessons.has(id)) return;
+    // The same lesson listed twice (subgroups, a dated copy): keep the one that can be recorded.
+    const known = lessons.get(id);
+    if (known && (known.link || !entry.link)) return;
     lessons.set(id, {
       id, date, slot: entry.slot, startTime: time[0], endTime: time[1],
       startsAt: moscowInstant(date, time[0]), endsAt: moscowInstant(date, time[1]),

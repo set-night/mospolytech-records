@@ -45,6 +45,8 @@ export class AppTray {
   private status: RecorderStatus | null = null;
   /** Version of a downloaded update waiting for a restart. */
   private pending: string | null = null;
+  /** What the menu shows now; the recorder reports far more often than it changes. */
+  private shown = '';
 
   constructor(private readonly actions: TrayActions) {
     this.tray = new Tray(image(false));
@@ -66,8 +68,11 @@ export class AppTray {
       this.tray.setImage(image(recording));
     }
     const line = describe(status);
-    this.tray.setToolTip(`${APP_NAME}\n${line}`);
     const active = status.state !== 'idle';
+    const shown = JSON.stringify([line, active, this.pending]);
+    if (shown === this.shown) return;
+    this.shown = shown;
+    this.tray.setToolTip(`${APP_NAME}\n${line}`);
     this.tray.setContextMenu(Menu.buildFromTemplate([
       { label: line, enabled: false },
       { type: 'separator' },

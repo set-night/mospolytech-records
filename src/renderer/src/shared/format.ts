@@ -1,8 +1,11 @@
-const MOSCOW = 'Europe/Moscow';
+// Building a formatter is far costlier than using one, and these run for every row on every render.
+const moscowDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' });
+const longDay = new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+const shortDay = new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', day: 'numeric', month: 'short' });
 
 /** `YYYY-MM-DD` of an instant in Moscow, matching the schedule's dates. */
 export function moscowDate(time: number): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: MOSCOW, year: 'numeric', month: '2-digit', day: '2-digit' }).format(time);
+  return moscowDay.format(time);
 }
 
 function utc(date: string): Date {
@@ -21,11 +24,11 @@ export function weekStart(date: string): string {
 }
 
 export function dayTitle(date: string): string {
-  return new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(utc(date));
+  return longDay.format(utc(date));
 }
 
 export function shortDate(date: string): string {
-  return new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', day: 'numeric', month: 'short' }).format(utc(date));
+  return shortDay.format(utc(date));
 }
 
 export function capitalize(text: string): string {
