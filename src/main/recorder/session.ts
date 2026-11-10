@@ -1,8 +1,9 @@
 import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs';
-import { app, BrowserWindow, ipcMain, powerSaveBlocker, session, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, ipcMain, session, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { CAPTURE_CHANNELS, type CaptureOptions } from '@shared/capture';
 import { chatText, LIVE_CHANNELS } from '@shared/live';
 import type { Lesson, Quality, RecordingMeta } from '@shared/types';
+import { logError } from '../log';
 import { freePath, recordingName, writeMeta } from '../recordings/library';
 import { preloadPath, loadPage } from '../pages';
 import { iconPath } from '../tray';
@@ -29,6 +30,9 @@ const QUALITY: Record<Quality, CaptureOptions> = {
 
 const CAPTURE_PARTITION = 'mpr-capture';
 const SECOND = 1000;
+/** A capture page that has not started writing by then is opened again. */
+const CAPTURE_START_TIMEOUT = 30 * SECOND;
+const LOADING: Probe = { state: 'loading', text: '' };
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -52,8 +56,10 @@ export class RecordingSession {
   private part = 0;
   private recorded = false;
   private timer: NodeJS.Timeout | null = null;
-  private blocker: number | null = null;
   private stopping: Promise<void> | null = null;
+  private captureOpenedAt = 0;
+  /** The capture being closed; every caller waits for the same one. */
+  private captureStop: Promise<void> | null = null;
   private onCaptureStopped: (() => void) | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly finished: Promise<void>;
@@ -110,7 +116,6 @@ export class RecordingSession {
       if (frame) callback({ video: frame, audio: frame });
       else callback({});
     });
-    this.blocker = powerSaveBlocker.start('prevent-app-suspension');
     this.openMeeting();
     this.schedule(SECOND);
   }
@@ -123,8 +128,15 @@ export class RecordingSession {
 
   async preview(): Promise<string | null> {
     if (!this.meeting || this.meeting.isDestroyed()) return null;
-    const image = await this.meeting.webContents.capturePage();
-    return image.isEmpty() ? null : image.resize({ width: 640 }).toDataURL();
+    try {
+      const image = await this.meeting.webContents.capturePage();
+      if (image.isEmpty()) return null;
+      // JPEG is several times smaller than PNG for a slide or a camera picture.
+      return `data:image/jpeg;base64,${image.resize({ width: 640 }).toJPEG(75).toString('base64')}`;
+    } catch {
+      // The window closed while the picture was being taken.
+      return null;
+    }
   }
 
   /**
@@ -272,22 +284,32 @@ export class RecordingSession {
   }
 
   private async tick(): Promise<void> {
-    if (Date.now() >= this.config.stopAt) {
-      await this.stop('Пара закончилась');
-      return;
+    try {
+      if (Date.now() >= this.config.stopAt) {
+        await this.stop('Пара закончилась');
+        return;
+      }
+      const probe = await this.probe();
+      if (this.stopping) return;
+      await this.act(probe);
+    } catch (error) {
+      // A window that died mid-step must not end the loop: the next step reopens it.
+      logError(`Session step failed for «${this.config.lesson.subject}»`, error);
     }
-    const probe = await this.probe();
-    if (this.stopping) return;
-    await this.act(probe);
     this.schedule(this.capture ? 8 * SECOND : 3 * SECOND);
   }
 
   private async probe(): Promise<Probe> {
     const contents = this.meeting?.webContents;
-    if (!contents || contents.isDestroyed() || contents.isLoading()) return { state: 'loading', text: '' };
-    const timeout = new Promise<Probe>((resolve) => setTimeout(() => resolve({ state: 'loading', text: '' }), 10 * SECOND));
-    const result = contents.executeJavaScript(probeScript(this.config.nickname)) as Promise<Probe>;
-    return Promise.race([result.catch((): Probe => ({ state: 'loading', text: '' })), timeout]);
+    if (!contents || contents.isDestroyed() || contents.isLoading()) return LOADING;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<Probe>((resolve) => { timer = setTimeout(() => resolve(LOADING), 10 * SECOND); });
+    const result = (contents.executeJavaScript(probeScript(this.config.nickname)) as Promise<Probe>).catch(() => LOADING);
+    try {
+      return await Promise.race([result, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async act(probe: Probe): Promise<void> {
@@ -299,6 +321,11 @@ export class RecordingSession {
     }
 
     if (this.capture) {
+      if (!this.stream && now - this.captureOpenedAt > CAPTURE_START_TIMEOUT) {
+        await this.stopCapture('partial', null);
+        this.update('joining', 'Запись не началась, пробую ещё раз');
+        return;
+      }
       if (probe.state === 'joined') {
         this.leaveMissing = 0;
         this.leaveHidden = probe.leaveVisible ? 0 : this.leaveHidden + 1;
@@ -326,7 +353,7 @@ export class RecordingSession {
         this.update('joining', 'Ввожу имя');
         this.mouseClick(probe.x, probe.y);
         this.selectAll();
-        this.meeting?.webContents.insertText(this.config.nickname);
+        await this.meeting?.webContents.insertText(this.config.nickname);
         return;
       case 'click': {
         // A join button without a name form is pressed at most every 5 s.
@@ -355,7 +382,7 @@ export class RecordingSession {
 
   private mouseClick(x: number, y: number): void {
     const contents = this.meeting?.webContents;
-    if (!contents) return;
+    if (!contents || contents.isDestroyed()) return;
     contents.sendInputEvent({ type: 'mouseMove', x, y });
     contents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
     contents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
@@ -363,13 +390,16 @@ export class RecordingSession {
 
   private selectAll(): void {
     const contents = this.meeting?.webContents;
-    if (!contents) return;
+    if (!contents || contents.isDestroyed()) return;
     const modifiers: Array<'meta' | 'control'> = [process.platform === 'darwin' ? 'meta' : 'control'];
     contents.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers });
     contents.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers });
   }
 
   private async startCapture(): Promise<void> {
+    // The previous part may still be closing its file.
+    if (this.captureStop) await this.captureStop;
+    if (this.capture || this.stopping) return;
     this.update('joining', 'Начинаю запись');
     const capture = new BrowserWindow({
       show: false,
@@ -382,6 +412,7 @@ export class RecordingSession {
       },
     });
     this.capture = capture;
+    this.captureOpenedAt = Date.now();
     this.leaveMissing = 0;
     this.leaveHidden = 0;
     capture.webContents.on('render-process-gone', () => void this.stopCapture('partial', 'Сбой записи'));
@@ -389,7 +420,8 @@ export class RecordingSession {
       await loadPage(capture, 'capture');
       capture.webContents.send(CAPTURE_CHANNELS.start, QUALITY[this.config.quality]);
     } catch {
-      this.closeCapture();
+      // Closed meanwhile (the session is stopping) or the page failed to load; the loop tries again.
+      if (this.capture === capture) this.closeCapture();
     }
   }
 
@@ -398,33 +430,49 @@ export class RecordingSession {
   }
 
   private onStarted(mime: string): void {
+    // One capture page reports once; anything else would start a second file.
+    if (this.stream || this.stopping) return;
     const { lesson, folder } = this.config;
-    this.part += 1;
-    mkdirSync(folder, { recursive: true });
-    const file = freePath(folder, recordingName(lesson, this.part, mime.includes('webm') ? 'webm' : 'mp4'));
-    this.stream = createWriteStream(file);
-    this.stream.on('error', () => void this.stop('Не удалось записать файл: проверьте место на диске', 'partial'));
-    this.file = file;
-    this.since = Date.now();
-    this.recorded = true;
-    this.meta = {
-      lessonId: lesson.id,
-      subject: lesson.subject,
-      type: lesson.type,
-      teacher: lesson.teacher,
-      date: lesson.date,
-      startTime: lesson.startTime,
-      endTime: lesson.endTime,
-      link: this.config.link,
-      startedAt: this.since,
-      finishedAt: null,
-      status: 'recording',
-      note: null,
-    };
-    writeMeta(folder, file, this.meta);
+    try {
+      mkdirSync(folder, { recursive: true });
+      const file = freePath(folder, recordingName(lesson, this.part + 1, mime.includes('webm') ? 'webm' : 'mp4'));
+      const since = Date.now();
+      const meta: RecordingMeta = {
+        lessonId: lesson.id,
+        subject: lesson.subject,
+        type: lesson.type,
+        teacher: lesson.teacher,
+        date: lesson.date,
+        startTime: lesson.startTime,
+        endTime: lesson.endTime,
+        link: this.config.link,
+        startedAt: since,
+        finishedAt: null,
+        status: 'recording',
+        note: null,
+      };
+      writeMeta(folder, file, meta);
+      const stream = createWriteStream(file);
+      stream.on('error', (error) => this.fail('Не удалось записать файл: проверь место на диске', error));
+      this.stream = stream;
+      this.part += 1;
+      this.file = file;
+      this.since = since;
+      this.meta = meta;
+      this.recorded = true;
+    } catch (error) {
+      this.fail('Не удалось создать файл записи: проверь папку в настройках', error);
+      return;
+    }
     // The capture keeps the sound off the speakers by itself.
     this.meeting?.webContents.setAudioMuted(false);
     this.update('recording', null);
+  }
+
+  /** The disk or the folder let us down: retrying would only fail the same way. */
+  private fail(message: string, error: unknown): void {
+    logError(message, error);
+    void this.stop(message, 'partial');
   }
 
   private onChunk(data: ArrayBuffer): void {
@@ -438,33 +486,47 @@ export class RecordingSession {
   }
 
   private onCaptureError(message: string): void {
+    logError(`Capture failed: ${message}`);
     this.update('joining', `Ошибка записи: ${message}`);
     void this.stopCapture('partial', message);
   }
 
-  private async stopCapture(status: 'done' | 'partial', note: string | null): Promise<void> {
+  /** Closes the capture page and the current part; concurrent calls share one run. */
+  private stopCapture(status: 'done' | 'partial', note: string | null): Promise<void> {
+    this.captureStop ??= this.finishCapture(status, note).finally(() => { this.captureStop = null; });
+    return this.captureStop;
+  }
+
+  private async finishCapture(status: 'done' | 'partial', note: string | null): Promise<void> {
     const capture = this.capture;
     if (!capture) return;
-    if (this.stream && !capture.isDestroyed()) {
-      // Let MediaRecorder flush its last fragment.
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(resolve, 10 * SECOND);
-        this.onCaptureStopped = () => { clearTimeout(timeout); resolve(); };
-        capture.webContents.send(CAPTURE_CHANNELS.stop);
-      });
+    try {
+      if (this.stream && !capture.isDestroyed()) {
+        // Let MediaRecorder flush its last fragment.
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(resolve, 10 * SECOND);
+          this.onCaptureStopped = () => { clearTimeout(timeout); resolve(); };
+          capture.webContents.send(CAPTURE_CHANNELS.stop);
+        });
+      }
+    } catch (error) {
+      logError('Capture did not stop cleanly', error);
     }
     this.onCaptureStopped = null;
     this.closeCapture();
-    this.meeting?.webContents.setAudioMuted(true);
-    const stream = this.stream;
+    if (this.meeting && !this.meeting.isDestroyed()) this.meeting.webContents.setAudioMuted(true);
+    const { stream, meta, file } = this;
     this.stream = null;
-    if (stream) await new Promise<void>((resolve) => stream.end(resolve));
-    if (this.meta && this.file) {
-      this.meta = { ...this.meta, finishedAt: Date.now(), status, note };
-      writeMeta(this.config.folder, this.file, this.meta);
-    }
     this.meta = null;
     this.since = null;
+    if (stream) await new Promise<void>((resolve) => stream.end(() => resolve()));
+    if (!meta || !file) return;
+    try {
+      writeMeta(this.config.folder, file, { ...meta, finishedAt: Date.now(), status, note });
+    } catch (error) {
+      // The video itself is safe; the library shows it as incomplete without this.
+      logError('Could not update recording metadata', error);
+    }
   }
 
   private closeCapture(): void {
@@ -475,15 +537,25 @@ export class RecordingSession {
 
   private async shutdown(message: string, status: 'done' | 'partial'): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
-    await this.stopCapture(status, status === 'partial' ? message : null);
-    if (this.viewer && !this.viewer.isDestroyed()) this.viewer.destroy();
-    this.viewer = null;
-    if (this.meeting && !this.meeting.isDestroyed()) this.meeting.destroy();
-    this.meeting = null;
-    for (const [channel, handler] of Object.entries(this.handlers)) ipcMain.removeListener(channel, handler);
-    ipcMain.removeHandler(LIVE_CHANNELS.chat);
-    if (this.blocker !== null) powerSaveBlocker.stop(this.blocker);
-    this.blocker = null;
+    this.timer = null;
+    try {
+      await this.stopCapture(status, status === 'partial' ? message : null);
+    } catch (error) {
+      logError('Could not close the recording cleanly', error);
+    }
+    // Whatever went wrong above, the session must end: the recorder waits for `done`.
+    try {
+      this.closeCapture();
+      if (this.viewer && !this.viewer.isDestroyed()) this.viewer.destroy();
+      this.viewer = null;
+      if (this.meeting && !this.meeting.isDestroyed()) this.meeting.destroy();
+      this.meeting = null;
+      for (const [channel, handler] of Object.entries(this.handlers)) ipcMain.removeListener(channel, handler);
+      ipcMain.removeHandler(LIVE_CHANNELS.chat);
+      session.fromPartition(CAPTURE_PARTITION).setDisplayMediaRequestHandler(null);
+    } catch (error) {
+      logError('Could not close the session windows', error);
+    }
     this.update('finished', message);
     this.resolveFinished();
   }

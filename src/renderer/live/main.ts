@@ -4,6 +4,7 @@
  * so watching joins nothing new. Sound starts muted.
  */
 import './style.css';
+import { errorText } from '@shared/errors';
 
 const element = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const video = element<HTMLVideoElement>('video');
@@ -18,25 +19,39 @@ const subject = decodeURIComponent(location.hash.slice(1));
 element('title').textContent = subject;
 if (subject) document.title = subject;
 
+let current: MediaStream | null = null;
+let reconnect = 0;
+
 async function connect(): Promise<void> {
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
+    current = stream;
     // The room reloads after a reconnect; pick its new frame up.
-    for (const track of stream.getTracks()) track.onended = () => retry();
+    for (const track of stream.getTracks()) track.onended = () => retry(stream);
     video.srcObject = stream;
     wait.hidden = true;
   } catch {
-    retry();
+    retry(null);
   }
 }
 
-function retry(): void {
+/** Both tracks of a stream end together: only the first call for it schedules a reconnect. */
+function retry(stream: MediaStream | null): void {
+  if (stream !== current || reconnect) return;
+  for (const track of stream?.getTracks() ?? []) {
+    track.onended = null;
+    track.stop();
+  }
+  current = null;
   video.srcObject = null;
   wait.hidden = false;
-  setTimeout(() => void connect(), 2500);
+  reconnect = window.setTimeout(() => {
+    reconnect = 0;
+    void connect();
+  }, 2500);
 }
 
 function toggleSound(): void {
@@ -79,7 +94,7 @@ chat.addEventListener('submit', (event) => {
       message.value = '';
       say('Отправлено');
     })
-    .catch((error: unknown) => say(error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (?:\w*Error: )?/, '') : String(error), true))
+    .catch((error: unknown) => say(errorText(error), true))
     .finally(() => {
       message.disabled = false;
       message.focus();

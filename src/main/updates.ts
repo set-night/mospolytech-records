@@ -2,10 +2,13 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { app } from 'electron';
 import electronUpdater from 'electron-updater';
+import { z } from 'zod';
 import { APP_NAME, REPO_URL, type UpdateInfo, type UpdateStage } from '@shared/types';
 
 const API = REPO_URL.replace('https://github.com/', 'https://api.github.com/repos/') + '/releases/latest';
 const CHECK_EVERY = 6 * 60 * 60_000;
+
+const releaseSchema = z.object({ tag_name: z.string().min(1), assets: z.array(z.unknown()).min(1) });
 
 function parts(version: string): number[] {
   return version.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((part) => Number.parseInt(part, 10) || 0);
@@ -31,9 +34,8 @@ export async function latestRelease(): Promise<string | null> {
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) return null;
-  const body = (await response.json()) as { tag_name?: unknown; assets?: unknown };
-  if (!Array.isArray(body.assets) || body.assets.length === 0) return null;
-  return typeof body.tag_name === 'string' ? body.tag_name.replace(/^v/, '') : null;
+  const release = releaseSchema.safeParse(await response.json());
+  return release.success ? release.data.tag_name.replace(/^v/, '') : null;
 }
 
 /**
@@ -101,7 +103,8 @@ export class Updater {
     if (this.auto) {
       try {
         await electronUpdater.autoUpdater.checkForUpdates();
-        if (this.info) return this.info;
+        // It read the same release: nothing newer means there is nothing to ask GitHub about.
+        return this.info;
       } catch {
         // Falls back to the release page below.
       }

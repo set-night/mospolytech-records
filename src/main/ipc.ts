@@ -7,7 +7,7 @@ import { LESSON_BYTES, REPO_URL } from '@shared/types';
 import type { Recorder } from './recorder/recorder';
 import { freeSpace } from './recordings/disk';
 import { insideFolder, listRecordings, trashRecording } from './recordings/library';
-import { fetchGroups, fetchSchedule, normalizeGroup, ScheduleError } from './schedule/dmami';
+import { fetchGroups, fetchSchedule, GroupNotFoundError, normalizeGroup } from './schedule/dmami';
 import type { ScheduleService } from './schedule/service';
 import type { SettingsStore } from './settings/store';
 import { defaultFolder } from './settings/store';
@@ -63,7 +63,8 @@ function handlers(context: Context): Handlers {
         await fetchSchedule(group);
         return group;
       } catch (error) {
-        if (error instanceof ScheduleError) return null;
+        // Only "no such group" is an answer; being offline is an error the UI shows as such.
+        if (error instanceof GroupNotFoundError) return null;
         throw error;
       }
     },

@@ -5,6 +5,15 @@ import { app } from 'electron';
 
 export const HIDDEN_ARG = '--hidden';
 
+/**
+ * A program path as the `Exec` key of a desktop entry wants it: quoted, with the
+ * shell-like characters escaped, then with backslashes doubled as in any string value.
+ */
+export function desktopExec(path: string): string {
+  const quoted = `"${path.replace(/["`$\\]/g, '\\$&')}"`;
+  return quoted.replace(/\\/g, '\\\\').replace(/%/g, '%%');
+}
+
 function linuxEntry(): string {
   return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'autostart', 'mospolytech-records.desktop');
 }
@@ -23,7 +32,7 @@ export function applyAutoStart(enabled: boolean): void {
     mkdirSync(join(file, '..'), { recursive: true });
     writeFileSync(file, [
       '[Desktop Entry]', 'Type=Application', 'Name=MosPolytech Records',
-      `Exec="${exec.replace(/"/g, '\\"')}" ${HIDDEN_ARG}`, 'X-GNOME-Autostart-enabled=true', 'Terminal=false', '',
+      `Exec=${desktopExec(exec)} ${HIDDEN_ARG}`, 'X-GNOME-Autostart-enabled=true', 'Terminal=false', '',
     ].join('\n'));
     return;
   }

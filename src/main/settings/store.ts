@@ -54,11 +54,13 @@ export class SettingsStore {
   /** Validates untrusted input (it comes from the renderer) before saving. */
   update(patch: unknown): Settings {
     const parsed = patchSchema.parse(patch);
-    this.value = this.normalize({ ...this.value, ...parsed });
+    const next = this.normalize({ ...this.value, ...parsed });
+    // Disk first: if the write fails, the app must not run on settings that are gone after a restart.
     mkdirSync(dirname(this.file), { recursive: true });
     const temp = `${this.file}.tmp`;
-    writeFileSync(temp, JSON.stringify(this.value, null, 2));
+    writeFileSync(temp, JSON.stringify(next, null, 2));
     renameSync(temp, this.file);
+    this.value = next;
     for (const listener of this.listeners) listener(this.get());
     return this.get();
   }

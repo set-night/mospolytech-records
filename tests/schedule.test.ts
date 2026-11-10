@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { fetchGroups, fetchSchedule, normalizeGroup, parseSchedule, ScheduleError, webinarUrl } from '../src/main/schedule/dmami';
+import { fetchGroups, fetchSchedule, GroupNotFoundError, normalizeGroup, parseSchedule, ScheduleError, webinarUrl } from '../src/main/schedule/dmami';
 import { buildLessons, moscowInstant, slotTime, weekday } from '../src/main/schedule/timetable';
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
@@ -39,6 +39,37 @@ describe('parseSchedule', () => {
     expect(() => parseSchedule('<html>')).toThrow(ScheduleError);
   });
 
+  it('tells a missing group from a broken answer', () => {
+    const caught = (value: unknown): unknown => {
+      try {
+        return parseSchedule(value);
+      } catch (error) {
+        return error;
+      }
+    };
+    expect(caught({ status: 'error', message: 'Не нашлось расписание для группы' })).toBeInstanceOf(GroupNotFoundError);
+    expect(caught({ status: 'ok' })).toBeInstanceOf(GroupNotFoundError);
+    expect(caught('<html>Bad gateway</html>')).not.toBeInstanceOf(GroupNotFoundError);
+    expect(caught({ grid: {} })).not.toBeInstanceOf(GroupNotFoundError);
+  });
+
+  it('decodes HTML entities in names and links', () => {
+    const parsed = parseSchedule({
+      status: 'ok',
+      group: { title: 'X', dateFrom: '2026-09-01', dateTo: '2026-09-30', evening: 0 },
+      grid: { 1: { 1: [{
+        sbj: 'Основы &laquo;R&amp;D&raquo; &#8212; часть&nbsp;&#x49;&#73;', df: '2026-09-01', dt: '2026-09-30', teacher: 'О&#39;Нил <b>Ш.</b>',
+        auditories: [{ title: '<a href="https://my.mts-link.ru/j/1/2?a=1&#38;b=2&#x26;c=3">Webinar</a>' }],
+      }] } },
+    });
+    expect(parsed.entries[0]).toMatchObject({
+      // Entities outside the short known list stay as they are rather than turn into something wrong.
+      subject: 'Основы &laquo;R&D&raquo; — часть II',
+      teacher: "О'Нил Ш.",
+      link: 'https://my.mts-link.ru/j/1/2?a=1&b=2&c=3',
+    });
+  });
+
   it('skips malformed lessons instead of failing', () => {
     const parsed = parseSchedule({
       status: 'ok',
@@ -63,6 +94,18 @@ describe('buildLessons', () => {
     expect(new Set(lessons.map((lesson) => lesson.id)).size).toBe(4);
   });
 
+  it('keeps the recordable copy of a lesson listed twice', () => {
+    const entry = { weekday: null, date: '2026-09-09', slot: 2, from: '2026-09-09', to: '2026-09-09', subject: 'Физика', type: 'Лекция', teacher: '', rooms: '' };
+    const link = 'https://my.mts-link.ru/j/1/2';
+    const other = 'https://my.mts-link.ru/j/3/4';
+    const build = (...links: (string | null)[]): (string | null)[] => buildLessons({
+      title: 'X', evening: 0, dateFrom: '2026-09-01', dateTo: '2026-09-30', entries: links.map((value) => ({ ...entry, link: value })),
+    }).map((lesson) => lesson.link);
+    expect(build(null, link)).toEqual([link]);
+    expect(build(link, null)).toEqual([link]);
+    expect(build(link, other)).toEqual([link]);
+  });
+
   it('uses evening grids', () => {
     expect(slotTime(0, 6)).toEqual(['17:50', '19:20']);
     expect(slotTime(1, 7)).toEqual(['19:50', '21:10']);
@@ -85,6 +128,8 @@ describe('helpers', () => {
   it('normalises group input', () => {
     expect(normalizeGroup(' 231 321 ')).toBe('231-321');
     expect(normalizeGroup('дпо–цм2')).toBe('ДПО-ЦМ2');
+    expect(normalizeGroup('231 – 321')).toBe('231-321');
+    expect(normalizeGroup('231--321')).toBe('231-321');
   });
 
   it('rejects non-webinar links', () => {

@@ -22,6 +22,8 @@ export class Recorder {
   private readonly skip = new Set<string>();
   private timer: NodeJS.Timeout | null = null;
   private linkCheckedAt = 0;
+  /** Set on quit: nothing may start any more. */
+  private closed = false;
   private lastMessage: string | null = null;
   private readonly listeners = new Set<(status: RecorderStatus) => void>();
   private readonly finishedListeners = new Set<(finished: Finished) => void>();
@@ -33,6 +35,7 @@ export class Recorder {
     settings.onChange(() => this.tick());
   }
 
+  /** Starts planning; also called after the computer wakes up, to catch up at once. */
   start(): void {
     this.tick();
   }
@@ -93,6 +96,7 @@ export class Recorder {
 
   /** Waits for files to be closed; used on quit. */
   async shutdown(): Promise<void> {
+    this.closed = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     if (this.current) this.requested.add(this.current);
@@ -113,6 +117,7 @@ export class Recorder {
   }
 
   private tick(): void {
+    if (this.closed) return;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => this.tick(), TICK);
     const input = this.input();
@@ -134,7 +139,7 @@ export class Recorder {
     const lesson = manual ?? lessonToRecord(input);
     if (!manual) this.manual = null;
     if (lesson?.link) {
-      this.begin(lesson, lesson.link, input.lessons);
+      this.begin(lesson, lesson.link, input);
     } else if (awaitingLink(input) && input.now - this.linkCheckedAt > LINK_RETRY) {
       this.linkCheckedAt = input.now;
       void this.schedule.refresh();
@@ -142,7 +147,7 @@ export class Recorder {
     this.emit();
   }
 
-  private begin(lesson: Lesson, link: string, lessons: readonly Lesson[]): void {
+  private begin(lesson: Lesson, link: string, input: PlanInput): void {
     const settings = this.settings.get();
     const session = new RecordingSession({
       lesson,
@@ -150,7 +155,7 @@ export class Recorder {
       folder: settings.folder,
       nickname: settings.nickname,
       quality: settings.quality,
-      stopAt: stopAt(lesson, lessons),
+      stopAt: stopAt(lesson, input),
     });
     this.current = session;
     session.onUpdate(() => this.emit());

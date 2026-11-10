@@ -80,9 +80,19 @@ async function main(): Promise<void> {
     quitting = true;
     schedule.stop();
     updater.stop();
-    await recorder.shutdown();
+    try {
+      await recorder.shutdown();
+    } catch (error) {
+      logError('Recorder did not shut down cleanly', error);
+    }
     // A downloaded update is installed on the way out, never during a lesson.
-    if (!updater.install(restart)) app.exit(0);
+    let installing = false;
+    try {
+      installing = updater.install(restart);
+    } catch (error) {
+      logError('Could not install the update', error);
+    }
+    if (!installing) app.exit(0);
   }
 
   function notify(title: string, body: string, page?: string, options: { silent?: boolean; always?: boolean } = {}): void {
@@ -120,6 +130,7 @@ async function main(): Promise<void> {
   let spaceTimer: NodeJS.Timeout | null = null;
   let blocker: number | null = null;
   let lastFile: string | null = null;
+  let announced: string | null = null;
   let lastLogged = '';
   recorder.onStatus((status) => {
     const line = `${status.state}${status.lesson ? ` «${status.lesson.subject}» ${status.lesson.date} ${status.lesson.startTime}` : ''}${status.message ? ` — ${status.message}` : ''}`;
@@ -143,12 +154,17 @@ async function main(): Promise<void> {
       blocker = null;
     }
     if (status.file !== lastFile) {
-      if (status.file) notify('Запись началась', status.lesson?.subject ?? '', 'status', { silent: true });
+      // A reconnect starts a new part of the same lesson: one notice per lesson is enough.
+      if (status.file && status.lesson && status.lesson.id !== announced) {
+        announced = status.lesson.id;
+        notify('Запись началась', status.lesson.subject, 'status', { silent: true });
+      }
       lastFile = status.file;
       send(context, 'recordings', null);
     }
   });
   recorder.onFinished(({ lesson, file, message }) => {
+    announced = null;
     logInfo(`Finished «${lesson.subject}»: ${file ?? `not recorded (${message ?? 'no reason'})`}`);
     if (file) notify('Запись сохранена', lesson.subject, 'recordings');
     else notify('Пара не записана', `${lesson.subject}${message ? ` — ${message}` : ''}`, 'status');
@@ -177,22 +193,29 @@ async function main(): Promise<void> {
     }
   }
   setInterval(() => void cleanup(), 6 * 60 * 60_000);
-  let autoStart = settings.get().autoStart;
-  applyAutoStart(autoStart);
-  let keepDays = settings.get().keepDays;
-  settings.onChange((value) => {
-    send(context, 'settings', value);
-    if (value.keepDays !== keepDays) {
-      keepDays = value.keepDays;
-      void cleanup();
+  function autoStart(enabled: boolean): void {
+    try {
+      applyAutoStart(enabled);
+    } catch (error) {
+      logError('Could not change autostart', error);
     }
-    if (value.autoStart !== autoStart) applyAutoStart((autoStart = value.autoStart));
+  }
+  let previous = settings.get();
+  autoStart(previous.autoStart);
+  settings.onChange((value) => {
+    const before = previous;
+    previous = value;
+    send(context, 'settings', value);
+    // A new group has its own timetable; without this the old one would stay until the hourly refresh.
+    if (value.group !== before.group) void schedule.refresh();
+    if (value.keepDays !== before.keepDays || value.folder !== before.folder) void cleanup();
+    if (value.autoStart !== before.autoStart) autoStart(value.autoStart);
   });
 
   // After sleep the timetable may be stale and a lesson may already be on.
   powerMonitor.on('resume', () => {
     logInfo('System resumed');
-    void schedule.refresh().catch(() => undefined);
+    void schedule.refresh();
     recorder.start();
   });
 

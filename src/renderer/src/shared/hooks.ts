@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EventName, Events } from '@shared/api';
+import { errorText } from '@shared/errors';
 import type { RecorderStatus, ScheduleState, Settings } from '@shared/types';
 
 export function useEvent<E extends EventName>(event: E, listener: (payload: Events[E]) => void): void {
@@ -46,22 +47,21 @@ export function useAction<A extends unknown[]>(action: (...args: A) => Promise<u
 } {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Callers pass a fresh closure every render; the ref keeps `run` stable for effects and memo.
+  const latest = useRef(action);
+  useEffect(() => {
+    latest.current = action;
+  });
   const run = useCallback(async (...args: A) => {
     setBusy(true);
     setError(null);
     try {
-      await action(...args);
+      await latest.current(...args);
     } catch (caught) {
       setError(errorText(caught));
     } finally {
       setBusy(false);
     }
-  }, [action]);
+  }, []);
   return { run, busy, error };
-}
-
-/** IPC wraps errors as "Error invoking remote method 'x': Error: text". */
-export function errorText(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.replace(/^Error invoking remote method '[^']+': (?:\w*Error: )?/, '');
 }

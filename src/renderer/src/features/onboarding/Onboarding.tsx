@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, FolderOpen, Users, UserRound } from 'lucide-react';
+import { errorText } from '@shared/errors';
 import type { Settings } from '@shared/types';
-import { errorText } from '../../shared/hooks';
 import { Button, ErrorText, Logo } from '../../shared/ui';
 
 const STEPS = ['Группа', 'Папка', 'Имя'] as const;
@@ -46,8 +46,13 @@ export function Onboarding({ settings }: { settings: Settings }) {
   }
 
   async function chooseFolder(): Promise<void> {
-    const chosen = await window.api.chooseFolder();
-    if (chosen) setFolder(chosen);
+    setError(null);
+    try {
+      const chosen = await window.api.chooseFolder();
+      if (chosen) setFolder(chosen);
+    } catch (caught) {
+      setError(errorText(caught));
+    }
   }
 
   const canContinue = step === 0 ? group.trim().length > 0 : step === 2 ? nickname.trim().length > 0 : true;
