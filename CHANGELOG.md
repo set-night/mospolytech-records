@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/set-night/mospolytech-records/compare/v0.3.0...v0.3.1) (2026-11-10)
+
+
+### Исправления
+
+* harden recorder, schedule and recordings library after a full code review ([#9](https://github.com/set-night/mospolytech-records/issues/9)) ([e4bd25d](https://github.com/set-night/mospolytech-records/commit/e4bd25dd58c68052a4a34305e5c0b9e4d2772a5a))
+
 ## [0.3.0](https://github.com/set-night/mospolytech-records/compare/v0.2.0...v0.3.0) (2026-11-02)
 
 
