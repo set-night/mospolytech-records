@@ -1,7 +1,7 @@
 {
   "name": "mospolytech-records",
   "productName": "MosPolytech Records",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Автоматическая запись вебинаров МТС Линк по расписанию Московского Политеха",
   "license": "MIT",
   "author": {
