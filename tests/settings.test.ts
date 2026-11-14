@@ -28,6 +28,29 @@ describe('SettingsStore', () => {
     expect(new SettingsStore(file, '/docs/R').get()).toMatchObject({ nickname: 'Слушатель', quality: 'medium', folder: '/docs/R' });
   });
 
+  it('keeps a copy of a file it could not read', () => {
+    const file = join(temp(), 'settings.json');
+    const broken = '{"group": "231-321", "folder": "/home/me/Lessons"';
+    writeFileSync(file, broken);
+    const store = new SettingsStore(file, '/docs/R');
+    expect(store.damaged).toBe(`${file}.bad`);
+    expect(store.get().group).toBe('');
+    // The first save replaces the damaged file; the copy stays.
+    store.update({ group: '241-111' });
+    expect(readFileSync(`${file}.bad`, 'utf8')).toBe(broken);
+    expect(new SettingsStore(file, '/docs/R').damaged).toBeNull();
+
+    writeFileSync(file, '[1, 2]');
+    expect(new SettingsStore(file, '/docs/R').damaged).toBe(`${file}.bad`);
+  });
+
+  it('does not report a first run or bad fields as damage', () => {
+    const file = join(temp(), 'settings.json');
+    expect(new SettingsStore(file, '/docs/R').damaged).toBeNull();
+    writeFileSync(file, JSON.stringify({ quality: 'ultra' }));
+    expect(new SettingsStore(file, '/docs/R').damaged).toBeNull();
+  });
+
   it('rejects unknown keys from the renderer', () => {
     const store = new SettingsStore(join(temp(), 's.json'), '/docs/R');
     expect(() => store.update({ evil: true })).toThrow();

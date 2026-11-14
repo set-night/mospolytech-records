@@ -38,6 +38,7 @@ async function main(): Promise<void> {
   process.on('unhandledRejection', (error) => logError('Unhandled rejection', error));
 
   const settings = new SettingsStore(join(data, 'settings.json'), defaultFolder(app.getPath('documents')));
+  if (settings.damaged) logError(`Settings could not be read, starting from defaults; the old file is kept as ${settings.damaged}`);
   const schedule = new ScheduleService(join(data, 'schedule.json'), () => settings.get().group);
   const recorder = new Recorder(settings, schedule);
   const updater = new Updater(app.getVersion());
