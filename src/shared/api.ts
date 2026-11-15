@@ -1,4 +1,4 @@
-import type { AppInfo, DiskSpace, Recording, RecorderStatus, ScheduleState, Settings, UpdateInfo } from './types';
+import type { AppInfo, DiskSpace, Recording, RecorderStatus, ScheduleState, Settings, UpdateState } from './types';
 
 /** Main-process handlers exposed to the UI; channel name = key. */
 export interface Api {
@@ -28,9 +28,15 @@ export interface Api {
   openRepo(): Promise<void>;
   /** Shows the diagnostic log in the file manager, to attach it to a bug report. */
   showLog(): Promise<void>;
-  checkUpdates(): Promise<UpdateInfo | null>;
+  getUpdate(): Promise<UpdateState>;
+  /** Asks GitHub now; a failure is not thrown but told in `error` of the state. */
+  checkUpdates(): Promise<UpdateState>;
+  /** Starts fetching the new version; progress comes with the `update` event. */
+  downloadUpdate(): Promise<void>;
   /** Restarts into the downloaded update; refused while a lesson is being recorded. */
   installUpdate(): Promise<void>;
+  /** The user has read what is new in the version they run. */
+  dismissWhatsNew(): Promise<void>;
 }
 
 export type ApiChannel = keyof Api;
@@ -39,7 +45,7 @@ export const API_CHANNELS: readonly ApiChannel[] = [
   'getInfo', 'getSettings', 'saveSettings', 'chooseFolder', 'listGroups', 'checkGroup', 'getSchedule',
   'refreshSchedule', 'setSubjectEnabled', 'getStatus', 'getPreview', 'stopRecording', 'recordNow',
   'watchLesson', 'sendChat', 'listRecordings', 'openFolder', 'getDiskSpace', 'showRecording', 'openExternalPlayer', 'trashRecording', 'openRepo',
-  'showLog', 'checkUpdates', 'installUpdate',
+  'showLog', 'getUpdate', 'checkUpdates', 'downloadUpdate', 'installUpdate', 'dismissWhatsNew',
 ];
 
 /** Events pushed from main to the UI. */
@@ -48,7 +54,7 @@ export interface Events {
   schedule: ScheduleState;
   recordings: null;
   settings: Settings;
-  update: UpdateInfo;
+  update: UpdateState;
   navigate: string;
 }
 

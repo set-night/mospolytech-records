@@ -1,6 +1,6 @@
-import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
+import { app, dialog, ipcMain, shell } from 'electron';
 import { z } from 'zod';
-import type { Api, ApiChannel, EventName, Events } from '@shared/api';
+import type { Api, ApiChannel } from '@shared/api';
 import { API_CHANNELS } from '@shared/api';
 import { chatText } from '@shared/live';
 import { LESSON_BYTES, REPO_URL } from '@shared/types';
@@ -11,14 +11,15 @@ import { fetchGroups, fetchSchedule, GroupNotFoundError, normalizeGroup } from '
 import type { ScheduleService } from './schedule/service';
 import type { SettingsStore } from './settings/store';
 import { defaultFolder } from './settings/store';
-import type { Updater } from './updates';
+import type { Updater } from './updates/updater';
+import type { MainWindow } from './window';
 
 export interface Context {
   settings: SettingsStore;
   schedule: ScheduleService;
   recorder: Recorder;
   updater: Updater;
-  window: () => BrowserWindow | null;
+  window: MainWindow;
   logFile: string;
   /** Quits the app, installing a downloaded update and starting again if asked. */
   quit: (restart: boolean) => Promise<void>;
@@ -45,7 +46,7 @@ function handlers(context: Context): Handlers {
     getSettings: () => settings.get(),
     saveSettings: ([patch]) => settings.update(patch),
     chooseFolder: async () => {
-      const window = context.window();
+      const window = context.window.native;
       const options = { properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'>, defaultPath: settings.get().folder };
       const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
       return result.canceled ? null : (result.filePaths[0] ?? null);
@@ -106,12 +107,17 @@ function handlers(context: Context): Handlers {
     },
     openRepo: () => shell.openExternal(REPO_URL),
     showLog: () => shell.showItemInFolder(context.logFile),
-    checkUpdates: () => updater.check().catch(() => updater.state()),
+    getUpdate: () => updater.state(),
+    checkUpdates: () => updater.check(),
+    downloadUpdate: () => {
+      void updater.download();
+    },
     installUpdate: async () => {
       if (recorder.status().state !== 'idle') throw new Error('Сейчас идёт пара — обновлю после неё');
-      if (!updater.ready) throw new Error('Обновление ещё не скачано');
+      if (updater.state().stage !== 'ready') throw new Error('Обновление ещё не скачано');
       await context.quit(true);
     },
+    dismissWhatsNew: () => updater.dismissWhatsNew(),
   };
 }
 
@@ -119,14 +125,8 @@ export function registerIpc(context: Context): void {
   const table = handlers(context);
   for (const channel of API_CHANNELS) {
     ipcMain.handle(channel, (event, ...args: unknown[]) => {
-      // Only our own UI talks to main; the webinar and capture windows have their own channels.
-      if (event.sender !== context.window()?.webContents) throw new Error('Forbidden');
+      if (!context.window.owns(event.sender)) throw new Error('Forbidden');
       return table[channel](args);
     });
   }
-}
-
-export function send<E extends EventName>(context: Context, event: E, payload: Events[E]): void {
-  const window = context.window();
-  if (window && !window.isDestroyed()) window.webContents.send(`event:${event}`, payload);
 }

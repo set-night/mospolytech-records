@@ -1,8 +1,7 @@
 import { z } from 'zod';
+import { getJson, NetError } from '../net';
 
 const BASE = 'https://rasp.dmami.ru';
-const MAX_BYTES = 4 * 1024 * 1024;
-const TIMEOUT_MS = 20_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const WEBINAR_HOSTS = ['my.mts-link.ru', 'events.webinar.ru', 'my.webinar.ru'];
 
@@ -138,42 +137,33 @@ export function parseSchedule(value: unknown): ParsedSchedule {
   };
 }
 
-async function getJson(path: string): Promise<unknown> {
-  let response: Response;
+/** What went wrong, in words about the timetable site. */
+function failure(error: unknown): ScheduleError {
+  const kind = error instanceof NetError ? error.kind : 'offline';
+  if (kind === 'status') return new ScheduleError(`rasp.dmami.ru ответил ошибкой ${(error as NetError).status}`);
+  if (kind === 'size') return new ScheduleError('Слишком большой ответ от rasp.dmami.ru');
+  if (kind === 'json') return new ScheduleError('rasp.dmami.ru вернул не JSON');
+  return new ScheduleError('Нет связи с rasp.dmami.ru');
+}
+
+async function request(path: string): Promise<unknown> {
   try {
-    response = await fetch(`${BASE}${path}`, {
+    return await getJson(`${BASE}${path}`, {
       headers: { Referer: `${BASE}/`, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-  } catch {
-    throw new ScheduleError('Нет связи с rasp.dmami.ru');
-  }
-  if (!response.ok) throw new ScheduleError(`rasp.dmami.ru ответил ошибкой ${response.status}`);
-  const tooBig = new ScheduleError('Слишком большой ответ от rasp.dmami.ru');
-  // Do not even download a body the server already says is oversized.
-  if (Number(response.headers.get('content-length')) > MAX_BYTES) throw tooBig;
-  let buffer: ArrayBuffer;
-  try {
-    buffer = await response.arrayBuffer();
-  } catch {
-    throw new ScheduleError('Нет связи с rasp.dmami.ru');
-  }
-  if (buffer.byteLength > MAX_BYTES) throw tooBig;
-  try {
-    return JSON.parse(new TextDecoder().decode(buffer)) as unknown;
-  } catch {
-    throw new ScheduleError('rasp.dmami.ru вернул не JSON');
+  } catch (error) {
+    throw failure(error);
   }
 }
 
 export async function fetchSchedule(group: string): Promise<ParsedSchedule> {
-  return parseSchedule(await getJson(`/site/group?group=${encodeURIComponent(group)}&session=0`));
+  return parseSchedule(await request(`/site/group?group=${encodeURIComponent(group)}&session=0`));
 }
 
 const groupsSchema = z.object({ groups: z.record(z.string(), z.unknown()) });
 
 export async function fetchGroups(): Promise<string[]> {
-  const body = groupsSchema.safeParse(await getJson('/groups-list.json'));
+  const body = groupsSchema.safeParse(await request('/groups-list.json'));
   if (!body.success) throw new ScheduleError('Не удалось получить список групп');
   return Object.keys(body.data.groups).sort((a, b) => a.localeCompare(b, 'ru'));
 }

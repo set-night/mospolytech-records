@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { errorText } from '@shared/errors';
-import { addDays, dayTitle, duration, fileSize, moscowDate, plural, until, weekStart } from '../src/renderer/src/shared/format';
+import { addDays, ago, dayTitle, duration, fileSize, moscowDate, plural, until, weekStart } from '../src/renderer/src/shared/format';
 
 describe('format', () => {
   it('declines Russian nouns by number', () => {
     const word = (count: number): string => plural(count, 'пару', 'пары', 'пар');
     expect([1, 2, 5, 11, 12, 21, 22, 25, 111, 101].map(word))
       .toEqual(['пару', 'пары', 'пар', 'пар', 'пар', 'пару', 'пары', 'пар', 'пар', 'пару']);
+  });
+
+  it('tells how long ago something happened', () => {
+    expect(ago(20_000)).toBe('только что');
+    expect(ago(-5_000)).toBe('только что');
+    expect(ago(5 * 60_000)).toBe('5 минут назад');
+    expect(ago(21 * 60_000)).toBe('21 минуту назад');
+    expect(ago(3 * 3_600_000)).toBe('3 часа назад');
+    expect(ago(49 * 3_600_000)).toBe('2 дня назад');
   });
 
   it('tells how soon a lesson starts', () => {

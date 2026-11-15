@@ -24,9 +24,9 @@
 [![macOS Intel](https://img.shields.io/badge/macOS-Intel-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x64.dmg)
 [![Linux](https://img.shields.io/badge/Linux-AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x86_64.AppImage)
 
-<sub>Другие форматы — <a href="https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x64.msi">.msi</a> для Windows и
+<sub>Кнопки ведут на последнюю версию. Другие форматы — <a href="https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x64.msi">.msi</a> для Windows и
 <a href="https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-amd64.deb">.deb</a> для Ubuntu/Debian — и все версии на странице
-<a href="https://github.com/set-night/mospolytech-records/releases">релизов</a>.</sub>
+<a href="https://github.com/set-night/mospolytech-records/releases">релизов</a>. <a href="#установка">Какой файл выбрать?</a></sub>
 
 <br /><br />
 
@@ -45,11 +45,12 @@
 - 💾 **Всё у вас.** Видео лежат в папке «Документы/MosPolytech Records» как обычные .mp4.
 - 🔔 **Держит в курсе.** Уведомит, когда запись сохранена, если пару записать не вышло и когда кончается место на диске.
 - 🧹 **Следит за местом.** По желанию сам убирает в корзину записи старше месяца, трёх или шести месяцев.
-- 🚀 **Автозапуск** вместе с системой и **обновления в фоне** — новая версия ставится одним перезапуском, никогда во время пары.
+- 🚀 **Автозапуск** вместе с системой.
+- ✨ **Обновляется сам.** Новая версия скачивается в фоне и ставится, пока приложение свёрнуто и пар нет. После обновления покажет, что нового.
 
 ## Как пользоваться
 
-1. **Скачайте** установщик для своей системы по кнопке выше и установите как обычную программу.
+1. **Скачайте** установщик для своей системы по кнопке выше и установите как обычную программу ([подробнее](#установка)).
 2. **Введите номер группы**, например `241-321`, и имя, под которым приложение будет заходить в вебинар.
 3. **Всё.** Значок появится в трее (рядом с часами). Компьютер должен быть включён и не спать во время пары.
 
@@ -77,6 +78,41 @@
 <br />
 <img src="docs/screenshots/schedule-light.png" alt="Расписание в светлой теме" />
 </details>
+
+## Установка
+
+| Система | Что скачать | Обновления |
+|---|---|---|
+| 🪟 Windows 10/11 | [`MosPolytech-Records-Setup-x64.exe`](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-Setup-x64.exe) — ставится в профиль, без прав администратора | ✅ сами |
+| 🪟 Windows, на все учётные записи | [`MosPolytech-Records-x64.msi`](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x64.msi) — нужны права администратора | по кнопке «Скачать установщик» |
+| 🍎 macOS на M1–M4 | [`MosPolytech-Records-arm64.dmg`](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-arm64.dmg) | по кнопке «Скачать установщик» |
+| 🍎 macOS на Intel | [`MosPolytech-Records-x64.dmg`](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x64.dmg) | по кнопке «Скачать установщик» |
+| 🐧 Linux | [`MosPolytech-Records-x86_64.AppImage`](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-x86_64.AppImage) — один файл, без установки | ✅ сами |
+| 🐧 Ubuntu/Debian | [`MosPolytech-Records-amd64.deb`](https://github.com/set-night/mospolytech-records/releases/latest/download/MosPolytech-Records-amd64.deb) | по кнопке «Скачать установщик» |
+
+Не знаете, что выбрать, — берите `.exe` на Windows и AppImage на Linux: они обновляются сами.
+Какой у вас Mac, видно в меню  → «Об этом Mac»: «Чип Apple M…» — это M1–M4, «Процессор Intel» — Intel.
+
+## Обновления
+
+Приложение проверяет GitHub при запуске и потом раз в несколько часов. Можно и вручную: «О программе» → «Проверить»
+или пункт в меню трея. На странице «О программе» видно, какая версия стоит и когда была последняя проверка.
+
+Как именно обновляться, выбирается в «Настройки» → «Обновления»:
+
+| Режим | Что происходит |
+|---|---|
+| **Сами** (по умолчанию) | Новая версия скачивается в фоне и ставится, когда окно свёрнуто, ничего не записывается и до пары больше получаса. Приложение тихо перезапустится и вернётся в трей. |
+| **Спрашивать** | Скачивается в фоне, придёт уведомление. Перезапуск — по кнопке «Перезапустить» на главной, в «О программе» или в меню трея. |
+| **Только сообщать** | Придёт уведомление о новой версии. Скачать и поставить — по кнопке. |
+
+Во время пары обновление не скачивается, чтобы не отнимать канал у вебинара, и никогда не ставится.
+После обновления на главной появится карточка «Что нового».
+
+Сами обновляются только `.exe` и AppImage. Сборки `.msi`, `.deb` и macOS тоже узнают о новой версии и пришлют
+уведомление, а кнопка «Скачать установщик» ведёт прямо на файл для вашей системы. Его достаточно установить поверх:
+записи, расписание и настройки сохранятся. Для macOS самообновление требует платной подписи Apple, которой у
+бесплатного проекта нет.
 
 ## Частые вопросы
 
@@ -109,7 +145,7 @@ xattr -cr "/Applications/MosPolytech Records.app"
 
 Проверьте, что у пары есть ссылка на вебинар (в расписании нет плашки «Без вебинара»), предмет включён,
 а компьютер не уходил в сон. Приложение само повторно проверяет расписание, если ссылку добавили в последний момент.
-Если всё так, а записи нет — откройте «О приложении» → «Журнал работы» и приложите файл `app.log` к
+Если всё так, а записи нет — откройте «О программе» → «Журнал работы» и приложите файл `app.log` к
 [issue](https://github.com/set-night/mospolytech-records/issues/new/choose).
 </details>
 
@@ -124,10 +160,31 @@ xattr -cr "/Applications/MosPolytech Records.app"
 <details>
 <summary><b>Как обновиться?</b></summary>
 
-Если вы ставили приложение через Windows-установщик `.exe` или запускаете AppImage — ничего делать не нужно:
-новая версия скачается в фоне, а приложение предложит перезапуститься (на главной и в меню трея).
-Для `.msi`, `.deb` и macOS на вкладке «О приложении» появится кнопка «Скачать» — установите новую версию поверх,
-записи и настройки сохранятся.
+Обычно никак: `.exe` и AppImage обновятся сами, остальные сборки пришлют уведомление со ссылкой на установщик.
+Подробности — в разделе [«Обновления»](#обновления). Если что-то пошло не так, скачайте свежий установщик по кнопке
+в начале страницы и поставьте поверх — записи и настройки сохранятся.
+</details>
+
+<details>
+<summary><b>Как проверить, что установщик скачался целым?</b></summary>
+
+К каждому релизу приложен файл `SHA256SUMS.txt`, суммы есть и в описании релиза. Посчитайте сумму своего файла
+и сравните:
+
+```powershell
+# Windows, PowerShell
+Get-FileHash .\MosPolytech-Records-Setup-x64.exe -Algorithm SHA256
+```
+
+```bash
+# macOS
+shasum -a 256 MosPolytech-Records-arm64.dmg
+```
+
+```bash
+# Linux: положите SHA256SUMS.txt рядом с установщиком
+sha256sum --check --ignore-missing SHA256SUMS.txt
+```
 </details>
 
 <details>
