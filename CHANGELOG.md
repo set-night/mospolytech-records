@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0](https://github.com/set-night/mospolytech-records/compare/v0.3.1...v0.4.0) (2026-11-15)
+
+
+### Новое
+
+* **net:** расписание загружается заново после сбоя сети, а не через 5 минут ([f7a10dd](https://github.com/set-night/mospolytech-records/commit/f7a10dd9ac5bf30c8f77c13d6c271b67ce022a6a))
+* **updates:** .msi, .deb и macOS получают прямую ссылку на свой установщик ([f7a10dd](https://github.com/set-night/mospolytech-records/commit/f7a10dd9ac5bf30c8f77c13d6c271b67ce022a6a))
+* **updates:** выбор режима обновлений — сами, спрашивать или только сообщать ([f7a10dd](https://github.com/set-night/mospolytech-records/commit/f7a10dd9ac5bf30c8f77c13d6c271b67ce022a6a))
+* **updates:** обновляется сам в фоне, когда приложение свёрнуто и пар нет ([f7a10dd](https://github.com/set-night/mospolytech-records/commit/f7a10dd9ac5bf30c8f77c13d6c271b67ce022a6a))
+* **updates:** уведомления о новой версии, кнопка «Проверить» и карточка «Что нового» ([f7a10dd](https://github.com/set-night/mospolytech-records/commit/f7a10dd9ac5bf30c8f77c13d6c271b67ce022a6a))
+
+
+### Исправления
+
+* **settings:** повреждённый файл настроек сохраняется в копию, а не пропадает ([f7a10dd](https://github.com/set-night/mospolytech-records/commit/f7a10dd9ac5bf30c8f77c13d6c271b67ce022a6a))
+
 ## [0.3.1](https://github.com/set-night/mospolytech-records/compare/v0.3.0...v0.3.1) (2026-11-10)
 
 
