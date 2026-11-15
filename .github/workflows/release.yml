@@ -1,8 +1,8 @@
 name: Release
 
 # Builds installers for every OS and attaches them to the GitHub release, together with the
-# latest*.yml files the installed app reads to update itself. Called by the Release PR
-# workflow after a release PR is merged; pushing a tag like v0.2.0 by hand works too.
+# latest*.yml files the installed app reads to update itself and SHA256SUMS.txt. Called by the
+# Release PR workflow after a release PR is merged; pushing a tag like v0.2.0 by hand works too.
 on:
   push:
     tags: ['v*']
@@ -70,25 +70,35 @@ jobs:
         with:
           path: installers
           merge-multiple: true
+      - name: Checksums
+        working-directory: installers
+        run: |
+          ls -la
+          # Installers only: blockmaps and latest*.yml are for the updater, not for people.
+          # A missing installer fails the step instead of publishing an incomplete list.
+          sha256sum MosPolytech-Records-*.{exe,msi,dmg,AppImage,deb} > SHA256SUMS.txt
+          cat SHA256SUMS.txt
       - name: Attach installers
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ls -la installers
-          sed "s/{{VERSION}}/$TAG/g" .github/release-notes.md > notes.md
+          # Download table, how to update, and the checksums inline.
+          sed -e "s/{{VERSION}}/$TAG/g" \
+            -e '/{{CHECKSUMS}}/{r installers/SHA256SUMS.txt' -e 'd' -e '}' \
+            .github/release-notes.md > download.md
           if gh release view "$TAG" >/dev/null 2>&1; then
-            # Created by the Release PR workflow: keep its changelog under the download table.
-            gh release view "$TAG" --json body --jq .body > changelog.md
+            # Created by the Release PR workflow: its changelog goes first, the downloads after it.
             gh release upload "$TAG" installers/* --clobber
+            gh release view "$TAG" --json body --jq .body > changelog.md
+            # A re-run finds the body already put together.
             if ! grep -q '^## Скачать' changelog.md; then
-              printf '\n\n' >> notes.md
-              cat changelog.md >> notes.md
+              { cat changelog.md; printf '\n\n'; cat download.md; } > notes.md
               gh release edit "$TAG" --title "MosPolytech Records $TAG" --notes-file notes.md
             fi
           else
             gh release create "$TAG" installers/* \
               --title "MosPolytech Records $TAG" \
-              --notes-file notes.md \
+              --notes-file download.md \
               --generate-notes \
               --verify-tag
           fi
