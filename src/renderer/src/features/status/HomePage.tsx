@@ -1,16 +1,17 @@
 import { ArrowRight, CalendarCheck2, CalendarDays } from 'lucide-react';
-import type { RecorderStatus, Settings, UpdateInfo } from '@shared/types';
+import type { RecorderStatus, Settings, UpdateState } from '@shared/types';
 import { capitalize, dayTitle, moscowDate } from '../../shared/format';
 import { useNow, useSchedule } from '../../shared/hooks';
 import { Button, Empty, PageHeader } from '../../shared/ui';
 import { UpdateBanner } from '../about/UpdateBanner';
+import { WhatsNew } from '../about/WhatsNew';
 import { LessonRow } from '../schedule/LessonRow';
 import { StatusCard } from './StatusCard';
 
 export function HomePage({ settings, status, update, onNavigate }: {
   settings: Settings;
   status: RecorderStatus | null;
-  update: UpdateInfo | null;
+  update: UpdateState | null;
   onNavigate: (page: 'schedule' | 'recordings') => void;
 }) {
   const schedule = useSchedule();
@@ -21,7 +22,8 @@ export function HomePage({ settings, status, update, onNavigate }: {
   return (
     <div className="page">
       <PageHeader title="Главная" subtitle={capitalize(dayTitle(today))} />
-      {update?.stage === 'ready' && <UpdateBanner update={update} status={status} />}
+      <UpdateBanner update={update} status={status} />
+      <WhatsNew update={update} />
       {status && <StatusCard status={status} />}
       <section className="section">
         <div className="section-head">

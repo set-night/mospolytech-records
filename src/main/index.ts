@@ -1,7 +1,8 @@
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { app, powerMonitor, shell } from 'electron';
 import { APP_NAME } from '@shared/types';
-import { applyAutoStart, startedHidden } from './autostart';
+import { applyAutoStart, leaveHiddenMark, startedHidden, takeHiddenMark } from './autostart';
 import { registerIpc } from './ipc';
 import { initLog, logError, logInfo } from './log';
 import { handleMedia, registerMediaScheme } from './media';
@@ -13,7 +14,9 @@ import { SpaceWatch } from './recordings/space';
 import { ScheduleService } from './schedule/service';
 import { defaultFolder, SettingsStore } from './settings/store';
 import { AppTray } from './tray';
-import { Updater } from './updates';
+import { installKind, shouldShowWhatsNew } from './updates/policy';
+import { reactToUpdates } from './updates/reactions';
+import { Updater } from './updates/updater';
 import { MainWindow } from './window';
 
 const CLEANUP_EVERY = 6 * 60 * 60_000;
@@ -41,7 +44,32 @@ async function main(): Promise<void> {
   if (settings.damaged) logError(`Settings could not be read, starting from defaults; the old file is kept as ${settings.damaged}`);
   const schedule = new ScheduleService(join(data, 'schedule.json'), () => settings.get().group);
   const recorder = new Recorder(settings, schedule);
-  const updater = new Updater(app.getVersion());
+
+  const current = app.getVersion();
+  const hiddenMark = join(data, 'restart-hidden');
+  // Back from a quiet update: stay in the tray, as before it.
+  const quiet = takeHiddenMark(hiddenMark);
+  const { seenVersion, onboarded } = settings.get();
+  const whatsNew = shouldShowWhatsNew(seenVersion, current, onboarded);
+  // A fresh install or a step back: nothing to tell, but the next update must know where it came from.
+  if (!whatsNew && seenVersion !== current) settings.update({ seenVersion: current });
+  const kind = installKind({
+    packaged: app.isPackaged,
+    platform: process.platform,
+    appImage: Boolean(process.env.APPIMAGE),
+    uninstaller: process.platform === 'win32' && existsSync(join(dirname(process.execPath), `Uninstall ${APP_NAME}.exe`)),
+  });
+  const updater = new Updater({
+    current,
+    kind,
+    // An x64 build under Rosetta should be offered the arm64 installer.
+    arch: app.runningUnderARM64Translation ? 'arm64' : process.arch,
+    mode: () => settings.get().updates,
+    busy: () => recorder.status().state !== 'idle',
+    whatsNew,
+    onSeen: () => settings.update({ seenVersion: current }),
+  });
+  logInfo(`Install kind: ${kind}${whatsNew ? `, updated from ${seenVersion || 'an older version'}` : ''}`);
   const window = new MainWindow();
   const notifier = new Notifier(() => settings.get().notifications, (page) => window.open(page));
   const space = new SpaceWatch(() => settings.get(), () => notifier.show(
@@ -69,7 +97,10 @@ async function main(): Promise<void> {
     } catch (error) {
       logError('Could not install the update', error);
     }
-    if (!installing) app.exit(0);
+    if (installing) return;
+    // Nothing to install after all: still keep the promise of a restart.
+    if (restart) app.relaunch(process.env.APPIMAGE ? { execPath: process.env.APPIMAGE, args: process.argv.slice(1) } : undefined);
+    app.exit(0);
   }
 
   async function cleanup(): Promise<void> {
@@ -102,6 +133,18 @@ async function main(): Promise<void> {
     update: () => {
       if (recorder.status().state === 'idle') void quit(true);
     },
+    getUpdate: () => {
+      const state = updater.state();
+      if (state.stage === 'manual') void shell.openExternal(state.url);
+      else {
+        window.open('about');
+        void updater.download();
+      }
+    },
+    checkUpdates: () => {
+      window.open('about');
+      void updater.check();
+    },
     quit: () => void quit(),
   });
 
@@ -111,10 +154,22 @@ async function main(): Promise<void> {
     window.send('status', status);
     space.watch(status.state !== 'idle');
   });
-  updater.onChange((info) => {
-    logInfo(`Update ${info.latest}: ${info.stage}${info.stage === 'downloading' ? ` ${info.percent ?? 0}%` : ''}`);
-    window.send('update', info);
-    tray.updateReady(info.stage === 'ready' ? info.latest : null);
+  reactToUpdates({
+    updater,
+    recorder,
+    notifier,
+    window,
+    tray,
+    settings: () => settings.get(),
+    announce: (version) => settings.update({ announcedVersion: version }),
+    installQuietly: () => {
+      try {
+        leaveHiddenMark(hiddenMark);
+      } catch (error) {
+        logError('Could not leave the mark for a hidden restart', error);
+      }
+      void quit(true);
+    },
   });
   let scheduleError: string | null = null;
   schedule.onChange((state) => {
@@ -133,6 +188,8 @@ async function main(): Promise<void> {
     if (value.group !== before.group) void schedule.refresh();
     if (value.keepDays !== before.keepDays || value.folder !== before.folder) void cleanup();
     if (value.autoStart !== before.autoStart) autoStart(value.autoStart);
+    // Downloads were allowed: the version found earlier can come now.
+    if (value.updates !== before.updates) updater.resume();
   });
 
   // After sleep the timetable may be stale and a lesson may already be on.
@@ -140,6 +197,7 @@ async function main(): Promise<void> {
     logInfo('System resumed');
     void schedule.refresh();
     recorder.start();
+    void updater.check();
   });
 
   app.on('second-instance', () => window.open());
@@ -158,6 +216,7 @@ async function main(): Promise<void> {
   void cleanup();
   setInterval(() => void cleanup(), CLEANUP_EVERY);
   tray.update(recorder.status());
-  if (!startedHidden() || !settings.get().onboarded) window.open();
+  if ((!startedHidden() && !quiet) || !settings.get().onboarded) window.open();
+  if (quiet && whatsNew) notifier.show(`Обновлено до ${current}`, 'Нажми, чтобы посмотреть, что нового.', { page: 'status', silent: true });
   updater.start();
 }

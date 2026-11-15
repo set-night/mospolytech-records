@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bell, FolderOpen, Gauge, Power, Trash2, UserRound, Users } from 'lucide-react';
-import type { DiskSpace, Quality, Settings } from '@shared/types';
+import { Bell, FolderOpen, Gauge, Power, RefreshCw, Trash2, UserRound, Users } from 'lucide-react';
+import type { DiskSpace, Quality, Settings, UpdateMode } from '@shared/types';
 import { errorText } from '@shared/errors';
 import { fileSize, plural } from '../../shared/format';
-import { useAction } from '../../shared/hooks';
+import { useAction, useUpdate } from '../../shared/hooks';
 import { Button, ErrorText, PageHeader, Switch } from '../../shared/ui';
 
 const QUALITY: { value: Quality; label: string; hint: string }[] = [
@@ -17,6 +17,12 @@ const KEEP: { value: number; label: string }[] = [
   { value: 30, label: 'Месяц' },
   { value: 90, label: '3 мес.' },
   { value: 180, label: 'Полгода' },
+];
+
+const UPDATES: { value: UpdateMode; label: string; hint: string }[] = [
+  { value: 'auto', label: 'Сами', hint: 'Скачиваю в фоне и ставлю, пока приложение свёрнуто и пар нет' },
+  { value: 'ask', label: 'Спрашивать', hint: 'Скачиваю в фоне, а перезапуск — по твоей кнопке' },
+  { value: 'notify', label: 'Только сообщать', hint: 'Сообщаю о новой версии, остальное — по твоей кнопке' },
 ];
 
 function spaceHint(space: DiskSpace | null): ReactNode {
@@ -49,6 +55,7 @@ export function SettingsPage({ settings }: { settings: Settings }) {
     if (folder) await window.api.saveSettings({ folder });
   });
 
+  const update = useUpdate();
   const [space, setSpace] = useState<DiskSpace | null>(null);
   useEffect(() => {
     let current = true;
@@ -152,6 +159,28 @@ export function SettingsPage({ settings }: { settings: Settings }) {
         <Row icon={<Power size={18} />} title="Запускать вместе с компьютером" hint="Приложение тихо стартует в трее и ничего не пропустит">
           <Switch label="Автозапуск" checked={settings.autoStart} onChange={(autoStart) => void save.run({ autoStart })} />
         </Row>
+        {update?.selfUpdating === false ? (
+          <Row icon={<RefreshCw size={18} />} title="Обновления" hint="Эта сборка обновляется вручную: сообщу о новой версии и дам ссылку на установщик">
+            <span className="muted small">Вручную</span>
+          </Row>
+        ) : (
+          <Row icon={<RefreshCw size={18} />} title="Обновления" hint={UPDATES.find((option) => option.value === settings.updates)?.hint ?? ''}>
+            <div className="segmented" role="radiogroup" aria-label="Обновления">
+              {UPDATES.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={settings.updates === option.value}
+                  className={settings.updates === option.value ? 'segmented-on' : ''}
+                  onClick={() => void save.run({ updates: option.value })}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </Row>
+        )}
         <ErrorText>{save.error ?? choose.error}</ErrorText>
       </div>
     </div>

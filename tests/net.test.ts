@@ -1,43 +1,12 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { getJson, NetError } from '../src/main/net';
-
-type Handler = (request: IncomingMessage, response: ServerResponse, attempt: number) => void;
-
-let server: Server | null = null;
-
-/** A real HTTP server on a free local port; returns its address and how many requests it got. */
-async function serve(handler: Handler): Promise<{ url: string; hits: () => number }> {
-  let hits = 0;
-  const started = createServer((request, response) => {
-    hits += 1;
-    handler(request, response, hits);
-  });
-  server = started;
-  await new Promise<void>((resolve) => started.listen(0, '127.0.0.1', resolve));
-  const { port } = started.address() as AddressInfo;
-  return { url: `http://127.0.0.1:${port}/`, hits: () => hits };
-}
-
-function json(response: ServerResponse, body: unknown, status = 200): void {
-  response.writeHead(status, { 'Content-Type': 'application/json' });
-  response.end(JSON.stringify(body));
-}
+import { json, serve } from './http';
 
 async function failure(promise: Promise<unknown>): Promise<NetError> {
   const error: unknown = await promise.then(() => null, (reason: unknown) => reason);
   if (!(error instanceof NetError)) throw new Error(`Expected a NetError, got ${String(error)}`);
   return error;
 }
-
-afterEach(async () => {
-  const running = server;
-  server = null;
-  if (!running) return;
-  running.closeAllConnections();
-  await new Promise((resolve) => running.close(resolve));
-});
 
 describe('getJson', () => {
   it('returns the parsed body and sends the headers', async () => {
@@ -93,7 +62,6 @@ describe('getJson', () => {
     const big = 'x'.repeat(5000);
     const announced = await serve((_request, response) => json(response, { big }));
     expect((await failure(getJson(announced.url, { maxBytes: 1000 }))).kind).toBe('size');
-    await new Promise((resolve) => server?.close(resolve));
 
     const chunked = await serve((_request, response) => {
       response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -120,9 +88,8 @@ describe('getJson', () => {
   });
 
   it('reports a server that is not there', async () => {
-    const { url } = await serve((_request, response) => json(response, {}));
-    await new Promise((resolve) => server?.close(resolve));
-    server = null;
+    const { url, close } = await serve((_request, response) => json(response, {}));
+    await close();
     expect((await failure(getJson(url, { pause: 1, retries: 1 }))).kind).toBe('offline');
   });
 });

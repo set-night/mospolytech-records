@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EventName, Events } from '@shared/api';
 import { errorText } from '@shared/errors';
-import type { RecorderStatus, ScheduleState, Settings } from '@shared/types';
+import type { RecorderStatus, ScheduleState, Settings, UpdateState } from '@shared/types';
 
 export function useEvent<E extends EventName>(event: E, listener: (payload: Events[E]) => void): void {
   const ref = useRef(listener);
@@ -28,6 +28,7 @@ function useLive<E extends EventName>(event: E, load: () => Promise<Events[E]>):
 export const useSettings = (): Settings | null => useLive('settings', () => window.api.getSettings());
 export const useSchedule = (): ScheduleState | null => useLive('schedule', () => window.api.getSchedule());
 export const useStatus = (): RecorderStatus | null => useLive('status', () => window.api.getStatus());
+export const useUpdate = (): UpdateState | null => useLive('update', () => window.api.getUpdate());
 
 /** Re-renders every `ms`; returns the current time. */
 export function useNow(ms = 30_000): number {

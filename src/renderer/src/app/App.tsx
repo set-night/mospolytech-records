@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { CalendarDays, Film, Info, LayoutDashboard, Settings as SettingsIcon } from 'lucide-react';
-import type { UpdateInfo } from '@shared/types';
 import { AboutPage } from '../features/about/AboutPage';
+import { isNews } from '../features/about/update';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import { RecordingsPage } from '../features/recordings/RecordingsPage';
 import { SchedulePage } from '../features/schedule/SchedulePage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { HomePage } from '../features/status/HomePage';
-import { useEvent, useSettings, useStatus } from '../shared/hooks';
+import { useEvent, useSettings, useStatus, useUpdate } from '../shared/hooks';
 import { Logo } from '../shared/ui';
 
 const PAGES = [
@@ -28,14 +28,9 @@ export function App() {
   const settings = useSettings();
   const status = useStatus();
   const [page, setPage] = useState<Page>(() => pageFrom(location.hash.slice(1)));
-  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const update = useUpdate();
 
   useEvent('navigate', (target) => setPage(pageFrom(target)));
-  useEvent('update', setUpdate);
-  useEffect(() => {
-    // Offline at start is normal: the main process checks again later and pushes `update`.
-    void window.api.checkUpdates().then((info) => info && setUpdate(info), () => undefined);
-  }, []);
 
   if (!settings) return <div className="splash"><Logo size={56} /></div>;
   if (!settings.onboarded) return <Onboarding settings={settings} />;
@@ -58,7 +53,7 @@ export function App() {
                 <Icon size={18} />
                 <span>{label}</span>
                 {id === 'status' && live && <span className="live-dot" aria-label="Идёт запись" />}
-                {id === 'about' && update && <span className="update-dot" aria-label="Есть обновление" />}
+                {id === 'about' && isNews(update) && <span className="update-dot" aria-label="Есть обновление" />}
               </button>
             </li>
           ))}

@@ -11,7 +11,7 @@ import { fetchGroups, fetchSchedule, GroupNotFoundError, normalizeGroup } from '
 import type { ScheduleService } from './schedule/service';
 import type { SettingsStore } from './settings/store';
 import { defaultFolder } from './settings/store';
-import type { Updater } from './updates';
+import type { Updater } from './updates/updater';
 import type { MainWindow } from './window';
 
 export interface Context {
@@ -107,12 +107,17 @@ function handlers(context: Context): Handlers {
     },
     openRepo: () => shell.openExternal(REPO_URL),
     showLog: () => shell.showItemInFolder(context.logFile),
-    checkUpdates: () => updater.check().catch(() => updater.state()),
+    getUpdate: () => updater.state(),
+    checkUpdates: () => updater.check(),
+    downloadUpdate: () => {
+      void updater.download();
+    },
     installUpdate: async () => {
       if (recorder.status().state !== 'idle') throw new Error('Сейчас идёт пара — обновлю после неё');
-      if (!updater.ready) throw new Error('Обновление ещё не скачано');
+      if (updater.state().stage !== 'ready') throw new Error('Обновление ещё не скачано');
       await context.quit(true);
     },
+    dismissWhatsNew: () => updater.dismissWhatsNew(),
   };
 }
 

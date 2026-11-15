@@ -51,9 +51,19 @@ describe('SettingsStore', () => {
     expect(new SettingsStore(file, '/docs/R').damaged).toBeNull();
   });
 
+  it('updates on its own by default and keeps the choice', () => {
+    const file = join(temp(), 'settings.json');
+    expect(new SettingsStore(file, '/docs/R').get()).toMatchObject({ updates: 'auto', seenVersion: '', announcedVersion: '' });
+    new SettingsStore(file, '/docs/R').update({ updates: 'notify' });
+    expect(new SettingsStore(file, '/docs/R').get().updates).toBe('notify');
+    writeFileSync(file, JSON.stringify({ updates: 'sometimes' }));
+    expect(new SettingsStore(file, '/docs/R').get().updates).toBe('auto');
+  });
+
   it('rejects unknown keys from the renderer', () => {
     const store = new SettingsStore(join(temp(), 's.json'), '/docs/R');
     expect(() => store.update({ evil: true })).toThrow();
     expect(() => store.update({ autoStart: 'yes' })).toThrow();
+    expect(() => store.update({ updates: 'bogus' })).toThrow();
   });
 });

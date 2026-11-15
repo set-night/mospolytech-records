@@ -13,6 +13,9 @@ const settingsSchema = z.object({
   onboarded: z.boolean().catch(false),
   notifications: z.boolean().catch(true),
   keepDays: z.number().int().min(0).max(3650).catch(0),
+  updates: z.enum(['auto', 'ask', 'notify']).catch('auto'),
+  seenVersion: z.string().max(40).catch(''),
+  announcedVersion: z.string().max(40).catch(''),
 });
 
 /** Strict: a bad value from the UI is an error, not a silent default. */
@@ -26,6 +29,9 @@ export const patchSchema = z.object({
   onboarded: z.boolean(),
   notifications: z.boolean(),
   keepDays: z.number().int().min(0).max(3650),
+  updates: z.enum(['auto', 'ask', 'notify']),
+  seenVersion: z.string().max(40),
+  announcedVersion: z.string().max(40),
 }).partial().strict();
 
 export function defaultFolder(documents: string): string {

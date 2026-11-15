@@ -22,10 +22,15 @@ export interface Settings {
   /** Subject keys (see `subjectKey`) the user switched recording off for. */
   disabledSubjects: string[];
   onboarded: boolean;
-  /** System notifications about recordings; the low disk warning is shown regardless. */
+  /** System notifications about recordings; a low disk and a new version to install by hand are shown regardless. */
   notifications: boolean;
   /** Our own recordings older than this many days go to the trash; 0 keeps them forever. */
   keepDays: number;
+  updates: UpdateMode;
+  /** The version whose "what's new" the user has already seen; empty on a fresh install. */
+  seenVersion: string;
+  /** The newest version a "new version is out" notification was shown for: one notice per version. */
+  announcedVersion: string;
 }
 
 export interface Lesson {
@@ -97,18 +102,46 @@ export interface RecorderStatus {
 }
 
 /**
- * `manual`: the user downloads the installer from the release page (macOS, msi, deb).
- * `downloading` / `ready`: the app fetches the update itself and installs it on restart.
+ * How much the app does about a new version by itself.
+ * `auto`: downloads it and restarts into it when nobody is looking and no lesson is near.
+ * `ask`: downloads it and waits for the user to press "restart".
+ * `notify`: only tells that it is out.
  */
-export type UpdateStage = 'manual' | 'downloading' | 'ready';
+export type UpdateMode = 'auto' | 'ask' | 'notify';
 
-export interface UpdateInfo {
+/**
+ * `idle`: nothing newer is known. `checking`: asking GitHub right now.
+ * `available`: a newer version the app can fetch itself; `downloading` and `ready` follow.
+ * `manual`: a newer version the user installs by hand (macOS, msi, deb): `url` is the installer.
+ * `error`: the check failed and no newer version is known.
+ */
+export type UpdateStage = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'manual' | 'error';
+
+/** A heading of the release notes with its entries, e.g. «Исправления». */
+export interface ReleaseSection {
+  title: string;
+  items: string[];
+}
+
+export interface UpdateState {
   current: string;
-  latest: string;
-  url: string;
+  /** The newer version, once one is known. */
+  latest: string | null;
   stage: UpdateStage;
   /** Download progress, 0–100, while `downloading`. */
   percent: number | null;
+  /** What is new in `latest`. */
+  notes: ReleaseSection[];
+  /** The installer of `latest` for this build, or the release page. */
+  url: string;
+  /** When GitHub last answered, in milliseconds. */
+  checkedAt: number | null;
+  /** Why the last check or download failed, in words for the user. */
+  error: string | null;
+  /** Whether this build can replace itself: the Windows .exe installer and the AppImage can. */
+  selfUpdating: boolean;
+  /** What is new in `current`, right after an update; `null` once the user has seen it. */
+  whatsNew: ReleaseSection[] | null;
 }
 
 export interface DiskSpace {

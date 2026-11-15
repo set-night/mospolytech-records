@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { app } from 'electron';
@@ -37,6 +37,29 @@ export function applyAutoStart(enabled: boolean): void {
     return;
   }
   app.setLoginItemSettings({ openAtLogin: enabled, args: [HIDDEN_ARG] });
+}
+
+/** A restart into an update counts as hidden only for a while: a stale mark must not hide the window. */
+const HIDDEN_MARK_TTL = 10 * 60_000;
+
+/**
+ * The installer starts the app again without our arguments: a file tells the next start
+ * to stay in the tray, as before the quiet update.
+ */
+export function leaveHiddenMark(file: string, now = Date.now()): void {
+  writeFileSync(file, String(now));
+}
+
+/** Whether the mark is there and fresh; it is removed either way. */
+export function takeHiddenMark(file: string, now = Date.now()): boolean {
+  let left: number;
+  try {
+    left = Number(readFileSync(file, 'utf8'));
+  } catch {
+    return false;
+  }
+  rmSync(file, { force: true });
+  return Number.isFinite(left) && now - left >= 0 && now - left < HIDDEN_MARK_TTL;
 }
 
 export function startedHidden(): boolean {
